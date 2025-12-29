@@ -21,13 +21,11 @@ api.interceptors.request.use(async (config) => {
 
 export const listRepos = () => api.get('/repos');
 export const listEnvs = () => api.get('/envs');
-export const createEnv = (services) => api.post('/envs', { repo: services[0].repo, branch: services[0].branch }); // Legacy support if needed, or update backend to handle list. 
-// Note: Backend currently handles {repo, branch} single object in POST /envs. 
-// We should update Backend to handle multiple services if that was the plan. 
-// BUT for now, let's stick to the GitHub Config task.
+// { services: [], name: 'alias', stopTime: '18:00' }
+export const createEnv = (services, name = '', stopTime = '18:00') => api.post('/envs', { services, name, stopTime });
 export const getConfig = () => api.get('/config');
 export const saveConfig = (config) => api.post('/config', config);
 export const deployEnv = (stackName, services) => api.post('/deploy', { stackName, services });
-export const deleteEnv = (stackId) => api.delete(`/envs?stackId=${stackId}`);
+export const deleteEnv = (stackId, type = 'archive') => api.delete(`/envs?stackId=${stackId}&type=${type}`);
 
 export default api;

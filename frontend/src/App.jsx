@@ -69,6 +69,8 @@ function Dashboard({ signOut, user }) {
   const [repos, setRepos] = useState([]);
   // Multi-service state: [{ repo: '', branch: '', buildspec: 'buildspec.yml', appspec: 'appspec.yml' }]
   const [services, setServices] = useState([{ repo: '', branch: '', buildspec: 'buildspec.yml', appspec: 'appspec.yml' }]);
+  const [envName, setEnvName] = useState('');
+  const [stopTime, setStopTime] = useState('18:00');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -95,12 +97,22 @@ function Dashboard({ signOut, user }) {
           setEnvs([
             {
               StackId: '1',
+              StackName: 'dev-stack-active',
               Status: 'RUNNING',
               PublicIP: '1.2.3.4',
               CreatedAt: new Date().toISOString(),
               Services: [
-                { Repo: 'user/repo-a', Branch: 'feature/login' },
-                { Repo: 'user/backend', Branch: 'develop' }
+                { Repo: 'user/repo-a', Branch: 'feature/login' }
+              ]
+            },
+            {
+              StackId: '2',
+              StackName: 'dev-stack-history',
+              Status: 'ARCHIVED',
+              CreatedAt: new Date().toISOString(),
+              DeletedAt: new Date().toISOString(),
+              Services: [
+                { Repo: 'user/repo-b', Branch: 'main' }
               ]
             }
           ]);
@@ -123,6 +135,10 @@ function Dashboard({ signOut, user }) {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Split Active vs Archived
+  const activeEnvs = envs.filter(e => e.Status !== 'ARCHIVED');
+  const archivedEnvs = envs.filter(e => e.Status === 'ARCHIVED');
 
   const handleSaveConfig = async (formData) => {
     setLoading(true);
@@ -167,22 +183,27 @@ function Dashboard({ signOut, user }) {
     setLoading(true);
     try {
       if (DEV_BYPASS_AUTH) {
-        alert(`[DEV] Create Env with services: ${JSON.stringify(services)}`);
+        alert(`[DEV] Create Env: ${envName} (Stop: ${stopTime}) with services: ${JSON.stringify(services)}`);
         // Mock adding it to list
         setEnvs(prev => [{
           StackId: Date.now().toString(),
+          StackName: envName || `stack-${Date.now()}`,
+          Alias: envName,
+          StopTime: stopTime,
           Status: 'CREATING',
           PublicIP: null,
           CreatedAt: new Date().toISOString(),
           Services: services.map(s => ({ Repo: s.repo, Branch: s.branch }))
         }, ...prev]);
       } else {
-        // API expects { services: [{repo, branch, buildspec, appspec}, ...] }
-        await createEnv(services);
+        // API expects { services, name, stopTime }
+        await createEnv(services, envName, stopTime);
         await fetchData();
       }
       // Reset form
       setServices([{ repo: '', branch: '', buildspec: 'buildspec.yml', appspec: 'appspec.yml' }]);
+      setEnvName('');
+      setStopTime('18:00');
     } catch (err) {
       alert(err.message);
     } finally {
@@ -208,17 +229,39 @@ function Dashboard({ signOut, user }) {
     }
   };
 
-  const handleDelete = async (stackId) => {
-    if (!confirm(`Delete environment?`)) return;
+  const handleDelete = async (stackId, type = 'archive') => {
+    const action = type === 'permanent' ? 'Permanently Delete' : 'Archive (Terminate)';
+    if (!confirm(`Are you sure you want to ${action}?`)) return;
     try {
       if (DEV_BYPASS_AUTH) {
-        setEnvs(prev => prev.filter(e => e.StackId !== stackId));
+        if (type === 'permanent') {
+          setEnvs(prev => prev.filter(e => e.StackId !== stackId));
+        } else {
+          setEnvs(prev => prev.map(e => e.StackId === stackId ? { ...e, Status: 'ARCHIVED', DeletedAt: new Date().toISOString() } : e));
+        }
       } else {
-        await deleteEnv(stackId);
+        await deleteEnv(stackId, type);
         fetchData();
       }
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  const handleRelaunch = (env) => {
+    if (env.Services) {
+      // Map DB keys to Form keys if necessary (or just use what's there if compliant)
+      // DB usually caps RepoName etc, but services list is JSON from input.
+      // Let's assume input format is preserved.
+      const mapped = env.Services.map(s => ({
+        repo: s.repo || s.Repo,
+        branch: s.branch || s.Branch,
+        buildspec: s.buildspec || s.Buildspec || 'buildspec.yml',
+        appspec: s.appspec || s.Appspec || 'appspec.yml'
+      }));
+      setServices(mapped);
+      alert('Configuration loaded! Please review and click Launch.');
+      window.scrollTo(0, 0); // Scroll to top
     }
   };
 
@@ -254,6 +297,36 @@ function Dashboard({ signOut, user }) {
 
         <section className="create-section card">
           <h2>🚀 Launch New Environment</h2>
+
+          <div className="env-config-row" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+            <div className="form-group" style={{ flex: 2 }}>
+              <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.9em', color: '#666' }}>Environment Name (Optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. Project Alpha Demo"
+                value={envName}
+                onChange={(e) => setEnvName(e.target.value)}
+                className="input-field"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.9em', color: '#666' }}>Auto Stop Time (KST)</label>
+              <select
+                value={stopTime}
+                onChange={(e) => setStopTime(e.target.value)}
+                className="input-field"
+                style={{ width: '100%' }}
+              >
+                <option value="">Disabled (Run Forever)</option>
+                {Array.from({ length: 24 }).map((_, i) => {
+                  const t = i.toString().padStart(2, '0') + ':00';
+                  return <option key={t} value={t}>{t}</option>;
+                })}
+              </select>
+            </div>
+          </div>
+
           <div className="services-form">
             {services.map((service, index) => (
               <div key={index} className="service-row-container">
@@ -308,29 +381,44 @@ function Dashboard({ signOut, user }) {
           </div>
         </section>
 
+        {/* ACTIVE ENVIRONMENTS */}
         <section className="env-list-section card">
           <div className="section-header">
-            <h2>Active Environments</h2>
+            <h2>Active Environments ({activeEnvs.length})</h2>
             <button onClick={fetchData} className="icon-btn" disabled={refreshing}>
               {refreshing ? '↻' : '↻ Refresh'}
             </button>
           </div>
 
-          {envs.length === 0 ? (
-            <div className="empty-state">No active environments. Launch one above!</div>
-          ) : (
-            <div className="env-grid">
-              {envs.map((env) => (
+          <div className="env-grid">
+            {activeEnvs.length === 0 ? (
+              <div className="empty-state">No active environments. Launch one above!</div>
+            ) : (
+              activeEnvs.map((env) => (
                 <div key={env.StackId} className={`env-card status-${env.Status?.toLowerCase()}`}>
                   <div className="env-header">
-                    <span className="env-id">Stack: {env.StackName || env.StackId?.substring(0, 8)}</span>
-                    <span className={`status-badge ${env.Status?.toLowerCase()}`}>{env.Status}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span className="env-id" style={{ fontSize: '1.1em', fontWeight: 'bold' }}>
+                        {env.Alias || env.StackName || env.StackId?.substring(0, 8)}
+                      </span>
+                      <span style={{ fontSize: '0.8em', color: '#666' }}>
+                        Stack: {env.StackName || env.StackId?.substring(0, 8)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      <span className={`status-badge ${env.Status?.toLowerCase()}`}>{env.Status}</span>
+                      {env.Status === 'RUNNING' && env.StopTime && (
+                        <span style={{ fontSize: '0.75em', marginTop: '0.3rem', color: '#f59e0b' }}>
+                          🛑 Auto-Stop: {env.StopTime}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="env-body">
                     <div className="services-list">
                       {env.Services?.map((svc, i) => (
                         <div key={i} className="service-item">
-                          📦 <strong>{svc.Repo}</strong> : {svc.Branch}
+                          📦 <strong>{svc.Repo || svc.repo}</strong> : {svc.Branch || svc.branch}
                           <span style={{ fontSize: '0.8em', color: '#999', marginLeft: '0.5em' }}>
                             (Build: {svc.Buildspec || 'def'}, App: {svc.Appspec || 'def'})
                           </span>
@@ -346,15 +434,55 @@ function Dashboard({ signOut, user }) {
                         Open App ↗
                       </a>
                     )}
-                    <button onClick={() => handleDelete(env.StackId)} className="delete-btn">
-                      🗑️ Terminate
+                    <button onClick={() => handleDeploy(env)} className="visit-btn" style={{ borderColor: '#3b82f6', color: '#3b82f6' }}>
+                      🚀 Deploy
                     </button>
+                    <button onClick={() => handleDelete(env.StackId, 'archive')} className="delete-btn">
+                      📦 Archive
+                    </button>
+                    <button onClick={() => handleDelete(env.StackId, 'permanent')} className="delete-btn" style={{ borderColor: 'red', color: 'red' }}>
+                      💥 Destroy
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        {/* ARCHIVED ENVIRONMENTS */}
+        {archivedEnvs.length > 0 && (
+          <section className="env-list-section card" style={{ marginTop: '2rem', opacity: 0.8 }}>
+            <div className="section-header">
+              <h2>History / Archived ({archivedEnvs.length})</h2>
+            </div>
+            <div className="env-grid">
+              {archivedEnvs.map((env) => (
+                <div key={env.StackId} className="env-card status-archived" style={{ filter: 'grayscale(100%)' }}>
+                  <div className="env-header">
+                    <span className="env-id">{env.StackName || env.StackId?.substring(0, 8)}</span>
+                    <span className="status-badge archived">ARCHIVED</span>
+                  </div>
+                  <div className="env-body">
+                    <div className="services-list">
+                      {env.Services?.map((svc, i) => (
+                        <div key={i} className="service-item">
+                          📦 {svc.Repo || svc.repo} : {svc.Branch || svc.branch}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="time-info">Deleted: {new Date(env.DeletedAt || Date.now()).toLocaleString()}</div>
+                  </div>
+                  <div className="env-footer">
+                    <button onClick={() => handleRelaunch(env)} className="visit-btn" style={{ borderColor: '#10b981', color: '#10b981' }}>📝 Relaunch</button>
+                    <button onClick={() => handleDelete(env.StackId, 'permanent')} className="delete-btn">❌ Delete Forever</button>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </section>
+          </section>
+        )}
+
       </main>
     </div>
   );

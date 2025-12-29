@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand, PutCommand, DeleteCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, ScanCommand, PutCommand, DeleteCommand, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { listRepositories, getInstallationAccessToken, listBranches, downloadRepoArchive } from "./utils/github.mjs";
 import { createEnvironmentStack, deleteEnvironmentStack, getStackOutputs } from "./utils/cloudformation.mjs";
 import { stopInstance } from "./utils/ec2.mjs";
@@ -99,6 +99,9 @@ export const managerHandler = async (event) => {
         if (event.routeKey === "POST /envs") {
             const body = JSON.parse(event.body);
             let services = body.services;
+            const alias = body.name || '';
+            // Default to '18:00' only if undefined. Allow "" (Disabled).
+            const stopTime = body.stopTime !== undefined ? body.stopTime : '18:00';
 
             // Legacy support
             if (!services && body.repo && body.branch) {
@@ -109,6 +112,8 @@ export const managerHandler = async (event) => {
             if (!services || services.length === 0) return response(400, { error: "Missing services" });
 
             // 1. Trigger CloudFormation
+            // Pass alias to help name the stack? Or just keep it generic.
+            // Let's keep stack name generic (safe) but store Alias in DB.
             const { stackId, stackName } = await createEnvironmentStack(services);
 
             // 2. Save to DynamoDB
@@ -118,6 +123,8 @@ export const managerHandler = async (event) => {
                 BranchName: mainService.branch, // Primary Key (Range)
                 StackId: stackId,
                 StackName: stackName,
+                Alias: alias,
+                StopTime: stopTime,
                 Status: "CREATING",
                 CreatedAt: new Date().toISOString(),
                 Services: services,
@@ -251,6 +258,41 @@ export const webhookHandler = async (event) => {
 };
 
 export const schedulerHandler = async (event) => {
-    // Keep existing scheduler logic (Checking RUNNING status)
+    const now = new Date();
+    // UTC to KST (approx)
+    const kstHour = (now.getUTCHours() + 9) % 24;
+    console.log(`Scheduler running. Current KST Hour: ${kstHour}`);
+
+    try {
+        const scanCmd = new ScanCommand({
+            TableName: TABLE_NAME,
+            FilterExpression: "#s = :r",
+            ExpressionAttributeNames: { "#s": "Status" },
+            ExpressionAttributeValues: { ":r": "RUNNING" }
+        });
+        const { Items } = await docClient.send(scanCmd);
+
+        for (const item of Items) {
+            // If StopTime is not set or empty, do not run auto-stop.
+            if (!item.StopTime) continue;
+
+            const targetTimeStr = item.StopTime;
+            const targetHour = parseInt(targetTimeStr.split(':')[0], 10);
+
+            if (targetHour === kstHour) {
+                console.log(`Stopping ${item.StackName} (Scheduled: ${targetTimeStr} KST)`);
+                // Mark as STOPPED in DB (Simulating stop for now)
+                await docClient.send(new UpdateCommand({
+                    TableName: TABLE_NAME,
+                    Key: { RepoName: item.RepoName, BranchName: item.BranchName },
+                    UpdateExpression: "set #s = :s",
+                    ExpressionAttributeNames: { "#s": "Status" },
+                    ExpressionAttributeValues: { ":s": "STOPPED" }
+                }));
+            }
+        }
+    } catch (e) {
+        console.error("Scheduler failed:", e);
+    }
     return response(200, { message: 'Scheduler finished' });
 };
