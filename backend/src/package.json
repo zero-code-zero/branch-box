@@ -1,0 +1,17 @@
+{
+    "name": "branch-box-backend",
+    "version": "1.0.0",
+    "description": "Backend for Branch-Box",
+    "type": "module",
+    "main": "app.mjs",
+    "dependencies": {
+        "@aws-sdk/client-cloudformation": "^3.0.0",
+        "@aws-sdk/client-dynamodb": "^3.0.0",
+        "@aws-sdk/client-ec2": "^3.0.0",
+        "@aws-sdk/client-s3": "^3.958.0",
+        "@aws-sdk/client-ssm": "^3.958.0",
+        "@aws-sdk/lib-dynamodb": "^3.0.0",
+        "@octokit/app": "^14.0.0",
+        "@octokit/request": "^8.0.0"
+    }
+}

@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Branch-Box Backend Infrastructure
+
+Resources:
+  # DynamoDB Table
+  EnvironmentTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: BranchBox-Environments
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: RepoName
+          AttributeType: S
+        - AttributeName: BranchName
+          AttributeType: S
+      KeySchema:
+        - AttributeName: RepoName
+          KeyType: HASH
+        - AttributeName: BranchName
+          KeyType: RANGE
+
+  # Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: BranchBoxUserPool
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true # Only admin can invite users (safe for internal tool)
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: BranchBoxWebClient
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+  # Function: Manager (API for UI)
+  ManagerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.managerHandler
+      Runtime: nodejs20.x
+      Timeout: 30
+      Architectures:
+        - x86_64
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref EnvironmentTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:PutParameter
+                - ssm:GetParameter
+                - ssm:GetParameters
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/branchbox/*"
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref EnvironmentTable
+      Events:
+        GetRepos:
+          Type: HttpApi
+          Properties:
+            Path: /repos
+            Method: get
+            ApiId: !Ref ApiGateway
+        ListEnvs:
+          Type: HttpApi
+          Properties:
+            Path: /envs
+            Method: get
+            ApiId: !Ref ApiGateway
+        CreateEnv:
+          Type: HttpApi
+          Properties:
+            Path: /envs
+            Method: post
+            ApiId: !Ref ApiGateway
+        DeleteEnv:
+          Type: HttpApi
+          Properties:
+            Path: /envs
+            Method: delete
+            ApiId: !Ref ApiGateway
+
+  ApiGateway:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Auth:
+        DefaultAuthorizer: CognitoAuth
+        Authorizers:
+          CognitoAuth:
+            AuthorizationScopes: [ email, openid, profile ]
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}"
+              audience: [ !Ref UserPoolClient ]
+
+  # Function: Webhook (GitHub Events)
+  WebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.webhookHandler
+      Runtime: nodejs20.x
+      Timeout: 30
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref EnvironmentTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cloudformation:DeleteStack
+              Resource: "*"
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref EnvironmentTable
+      Events:
+        GitHubWebhook:
+          Type: HttpApi
+          Properties:
+            Path: /webhook
+            Method: post
+
+  # Function: Scheduler (Daily Stop)
+  SchedulerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.schedulerHandler
+      Runtime: nodejs20.x
+      Timeout: 60
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref EnvironmentTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cloudformation:UpdateStack
+                - ec2:StopInstances
+                - ec2:DescribeInstances
+              Resource: "*"
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref EnvironmentTable
+
+  # Scheduler Rule (EventBridge Scheduler)
+  StopDailySchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: BranchBox-DailyStop
+      Description: Stop instances at 18:00 KST
+      ScheduleExpression: cron(0 18 * * ? *)
+      ScheduleExpressionTimezone: Asia/Seoul
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt SchedulerFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt SchedulerFunction.Arn
+
+Outputs:
+  ApiEndpoint:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com"
+  Region:
+    Description: "Region"
+    Value: !Ref AWS::Region
+  UserPoolId:
+    Description: "Cognito User Pool ID"
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: "Cognito User Pool Client ID"
+    Value: !Ref UserPoolClient
