@@ -71,6 +71,7 @@ function Dashboard({ signOut, user }) {
   const [services, setServices] = useState([{ repo: '', branch: '', buildspec: 'buildspec.yml', appspec: 'appspec.yml' }]);
   const [envName, setEnvName] = useState('');
   const [stopTime, setStopTime] = useState('18:00');
+  const [startTime, setStartTime] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -183,27 +184,29 @@ function Dashboard({ signOut, user }) {
     setLoading(true);
     try {
       if (DEV_BYPASS_AUTH) {
-        alert(`[DEV] Create Env: ${envName} (Stop: ${stopTime}) with services: ${JSON.stringify(services)}`);
+        alert(`[DEV] Create Env: ${envName} (Stop: ${stopTime}, Start: ${startTime}) with services: ${JSON.stringify(services)}`);
         // Mock adding it to list
         setEnvs(prev => [{
           StackId: Date.now().toString(),
           StackName: envName || `stack-${Date.now()}`,
           Alias: envName,
           StopTime: stopTime,
+          StartTime: startTime,
           Status: 'CREATING',
           PublicIP: null,
           CreatedAt: new Date().toISOString(),
           Services: services.map(s => ({ Repo: s.repo, Branch: s.branch }))
         }, ...prev]);
       } else {
-        // API expects { services, name, stopTime }
-        await createEnv(services, envName, stopTime);
+        // API expects { services, name, stopTime, startTime }
+        await createEnv(services, envName, stopTime, startTime);
         await fetchData();
       }
       // Reset form
       setServices([{ repo: '', branch: '', buildspec: 'buildspec.yml', appspec: 'appspec.yml' }]);
       setEnvName('');
       setStopTime('18:00');
+      setStartTime('');
     } catch (err) {
       alert(err.message);
     } finally {
@@ -311,7 +314,7 @@ function Dashboard({ signOut, user }) {
               />
             </div>
             <div className="form-group" style={{ flex: 1 }}>
-              <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.9em', color: '#666' }}>Auto Stop Time (KST)</label>
+              <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.9em', color: '#666' }}>Auto Stop (KST)</label>
               <select
                 value={stopTime}
                 onChange={(e) => setStopTime(e.target.value)}
@@ -319,6 +322,21 @@ function Dashboard({ signOut, user }) {
                 style={{ width: '100%' }}
               >
                 <option value="">Disabled (Run Forever)</option>
+                {Array.from({ length: 24 }).map((_, i) => {
+                  const t = i.toString().padStart(2, '0') + ':00';
+                  return <option key={t} value={t}>{t}</option>;
+                })}
+              </select>
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.9em', color: '#666' }}>Auto Start (KST)</label>
+              <select
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="input-field"
+                style={{ width: '100%' }}
+              >
+                <option value="">Disabled</option>
                 {Array.from({ length: 24 }).map((_, i) => {
                   const t = i.toString().padStart(2, '0') + ':00';
                   return <option key={t} value={t}>{t}</option>;
@@ -410,6 +428,11 @@ function Dashboard({ signOut, user }) {
                       {env.Status === 'RUNNING' && env.StopTime && (
                         <span style={{ fontSize: '0.75em', marginTop: '0.3rem', color: '#f59e0b' }}>
                           🛑 Auto-Stop: {env.StopTime}
+                        </span>
+                      )}
+                      {env.Status === 'STOPPED' && env.StartTime && (
+                        <span style={{ fontSize: '0.75em', marginTop: '0.3rem', color: '#10b981' }}>
+                          🟢 Auto-Start: {env.StartTime}
                         </span>
                       )}
                     </div>

@@ -102,6 +102,7 @@ export const managerHandler = async (event) => {
             const alias = body.name || '';
             // Default to '18:00' only if undefined. Allow "" (Disabled).
             const stopTime = body.stopTime !== undefined ? body.stopTime : '18:00';
+            const startTime = body.startTime !== undefined ? body.startTime : ''; // Default Disabled
 
             // Legacy support
             if (!services && body.repo && body.branch) {
@@ -125,6 +126,7 @@ export const managerHandler = async (event) => {
                 StackName: stackName,
                 Alias: alias,
                 StopTime: stopTime,
+                StartTime: startTime,
                 Status: "CREATING",
                 CreatedAt: new Date().toISOString(),
                 Services: services,
@@ -288,6 +290,34 @@ export const schedulerHandler = async (event) => {
                     UpdateExpression: "set #s = :s",
                     ExpressionAttributeNames: { "#s": "Status" },
                     ExpressionAttributeValues: { ":s": "STOPPED" }
+                }));
+            }
+        }
+
+        // --- Auto Start Logic ---
+        const scanStoppedCmd = new ScanCommand({
+            TableName: TABLE_NAME,
+            FilterExpression: "#s = :r",
+            ExpressionAttributeNames: { "#s": "Status" },
+            ExpressionAttributeValues: { ":r": "STOPPED" }
+        });
+        const { Items: stoppedItems } = await docClient.send(scanStoppedCmd);
+
+        for (const item of stoppedItems) {
+            if (!item.StartTime) continue;
+
+            const targetTimeStr = item.StartTime;
+            const targetHour = parseInt(targetTimeStr.split(':')[0], 10);
+
+            if (targetHour === kstHour) {
+                console.log(`Starting ${item.StackName} (Scheduled: ${targetTimeStr} KST)`);
+                // Mark as RUNNING in DB (Simulating start)
+                await docClient.send(new UpdateCommand({
+                    TableName: TABLE_NAME,
+                    Key: { RepoName: item.RepoName, BranchName: item.BranchName },
+                    UpdateExpression: "set #s = :s",
+                    ExpressionAttributeNames: { "#s": "Status" },
+                    ExpressionAttributeValues: { ":s": "RUNNING" }
                 }));
             }
         }

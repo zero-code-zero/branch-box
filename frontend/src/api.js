@@ -21,8 +21,8 @@ api.interceptors.request.use(async (config) => {
 
 export const listRepos = () => api.get('/repos');
 export const listEnvs = () => api.get('/envs');
-// { services: [], name: 'alias', stopTime: '18:00' }
-export const createEnv = (services, name = '', stopTime = '18:00') => api.post('/envs', { services, name, stopTime });
+// { services: [], name: 'alias', stopTime: '18:00', startTime: '09:00' }
+export const createEnv = (services, name = '', stopTime = '18:00', startTime = '') => api.post('/envs', { services, name, stopTime, startTime });
 export const getConfig = () => api.get('/config');
 export const saveConfig = (config) => api.post('/config', config);
 export const deployEnv = (stackName, services) => api.post('/deploy', { stackName, services });
