@@ -15,7 +15,7 @@ function SettingsModal({ isOpen, onClose, onSave, loading }) {
     appId: '',
     installationId: '',
     privateKey: '',
-    clientSecret: ''
+    clientSecret: '',
   });
 
   if (!isOpen) return null;
@@ -33,27 +33,52 @@ function SettingsModal({ isOpen, onClose, onSave, loading }) {
       <div className="modal-content">
         <div className="modal-header">
           <h2>⚙️ GitHub App Configuration</h2>
-          <button onClick={onClose} className="close-btn">×</button>
+          <button onClick={onClose} className="close-btn">
+            ×
+          </button>
         </div>
         <div className="modal-body">
           <div className="form-group">
             <label>App ID</label>
-            <input name="appId" value={formData.appId} onChange={handleChange} placeholder="e.g. 123456" />
+            <input
+              name="appId"
+              value={formData.appId}
+              onChange={handleChange}
+              placeholder="e.g. 123456"
+            />
           </div>
           <div className="form-group">
             <label>Installation ID</label>
-            <input name="installationId" value={formData.installationId} onChange={handleChange} placeholder="e.g. 87654321" />
+            <input
+              name="installationId"
+              value={formData.installationId}
+              onChange={handleChange}
+              placeholder="e.g. 87654321"
+            />
           </div>
           <div className="form-group">
             <label>Private Key</label>
-            <textarea name="privateKey" value={formData.privateKey} onChange={handleChange} placeholder="-----BEGIN RSA PRIVATE KEY-----..." />
+            <textarea
+              name="privateKey"
+              value={formData.privateKey}
+              onChange={handleChange}
+              placeholder="-----BEGIN RSA PRIVATE KEY-----..."
+            />
           </div>
           <div className="form-group">
             <label>Client Secret (Optional)</label>
-            <input name="clientSecret" type="password" value={formData.clientSecret} onChange={handleChange} placeholder="************" />
+            <input
+              name="clientSecret"
+              type="password"
+              value={formData.clientSecret}
+              onChange={handleChange}
+              placeholder="************"
+            />
           </div>
           <div className="form-actions">
-            <button onClick={onClose} className="secondary-btn">Cancel</button>
+            <button onClick={onClose} className="secondary-btn">
+              Cancel
+            </button>
             <button onClick={handleSubmit} className="primary-btn" disabled={loading}>
               {loading ? 'Saving...' : 'Save Configuration'}
             </button>
@@ -68,7 +93,9 @@ function Dashboard({ signOut, user }) {
   const [envs, setEnvs] = useState([]);
   const [repos, setRepos] = useState([]);
   // Multi-service state: [{ repo: '', branch: '', buildspec: 'buildspec.yml', appspec: 'appspec.yml' }]
-  const [services, setServices] = useState([{ repo: '', branch: '', buildspec: 'buildspec.yml', appspec: 'appspec.yml' }]);
+  const [services, setServices] = useState([
+    { repo: '', branch: '', buildspec: 'buildspec.yml', appspec: 'appspec.yml' },
+  ]);
   const [envName, setEnvName] = useState('');
   const [stopTime, setStopTime] = useState('18:00');
   const [startTime, setStartTime] = useState('');
@@ -94,7 +121,7 @@ function Dashboard({ signOut, user }) {
         }
       } catch (apiErr) {
         if (DEV_BYPASS_AUTH) {
-          console.warn("API failed, using mock data for development preview");
+          console.warn('API failed, using mock data for development preview');
           setEnvs([
             {
               StackId: '1',
@@ -102,9 +129,7 @@ function Dashboard({ signOut, user }) {
               Status: 'RUNNING',
               PublicIP: '1.2.3.4',
               CreatedAt: new Date().toISOString(),
-              Services: [
-                { Repo: 'user/repo-a', Branch: 'feature/login' }
-              ]
+              Services: [{ Repo: 'user/repo-a', Branch: 'feature/login' }],
             },
             {
               StackId: '2',
@@ -112,14 +137,12 @@ function Dashboard({ signOut, user }) {
               Status: 'ARCHIVED',
               CreatedAt: new Date().toISOString(),
               DeletedAt: new Date().toISOString(),
-              Services: [
-                { Repo: 'user/repo-b', Branch: 'main' }
-              ]
-            }
+              Services: [{ Repo: 'user/repo-b', Branch: 'main' }],
+            },
           ]);
           setRepos([
             { id: 1, full_name: 'user/repo-a' },
-            { id: 2, full_name: 'user/backend' }
+            { id: 2, full_name: 'user/backend' },
           ]);
           setIsConfigured(true);
         } else {
@@ -138,8 +161,8 @@ function Dashboard({ signOut, user }) {
   }, []);
 
   // Split Active vs Archived
-  const activeEnvs = envs.filter(e => e.Status !== 'ARCHIVED');
-  const archivedEnvs = envs.filter(e => e.Status === 'ARCHIVED');
+  const activeEnvs = envs.filter((e) => e.Status !== 'ARCHIVED');
+  const archivedEnvs = envs.filter((e) => e.Status === 'ARCHIVED');
 
   const handleSaveConfig = async (formData) => {
     setLoading(true);
@@ -163,7 +186,10 @@ function Dashboard({ signOut, user }) {
   };
 
   const handleAddService = () => {
-    setServices([...services, { repo: '', branch: '', buildspec: 'buildspec.yml', appspec: 'appspec.yml' }]);
+    setServices([
+      ...services,
+      { repo: '', branch: '', buildspec: 'buildspec.yml', appspec: 'appspec.yml' },
+    ]);
   };
 
   const handleRemoveService = (index) => {
@@ -179,24 +205,30 @@ function Dashboard({ signOut, user }) {
   };
 
   const handleCreate = async () => {
-    if (services.some(s => !s.repo || !s.branch)) return alert('Please fill in all repo and branch fields');
+    if (services.some((s) => !s.repo || !s.branch))
+      return alert('Please fill in all repo and branch fields');
 
     setLoading(true);
     try {
       if (DEV_BYPASS_AUTH) {
-        alert(`[DEV] Create Env: ${envName} (Stop: ${stopTime}, Start: ${startTime}) with services: ${JSON.stringify(services)}`);
+        alert(
+          `[DEV] Create Env: ${envName} (Stop: ${stopTime}, Start: ${startTime}) with services: ${JSON.stringify(services)}`,
+        );
         // Mock adding it to list
-        setEnvs(prev => [{
-          StackId: Date.now().toString(),
-          StackName: envName || `stack-${Date.now()}`,
-          Alias: envName,
-          StopTime: stopTime,
-          StartTime: startTime,
-          Status: 'CREATING',
-          PublicIP: null,
-          CreatedAt: new Date().toISOString(),
-          Services: services.map(s => ({ Repo: s.repo, Branch: s.branch }))
-        }, ...prev]);
+        setEnvs((prev) => [
+          {
+            StackId: Date.now().toString(),
+            StackName: envName || `stack-${Date.now()}`,
+            Alias: envName,
+            StopTime: stopTime,
+            StartTime: startTime,
+            Status: 'CREATING',
+            PublicIP: null,
+            CreatedAt: new Date().toISOString(),
+            Services: services.map((s) => ({ Repo: s.repo, Branch: s.branch })),
+          },
+          ...prev,
+        ]);
       } else {
         // API expects { services, name, stopTime, startTime }
         await createEnv(services, envName, stopTime, startTime);
@@ -238,9 +270,15 @@ function Dashboard({ signOut, user }) {
     try {
       if (DEV_BYPASS_AUTH) {
         if (type === 'permanent') {
-          setEnvs(prev => prev.filter(e => e.StackId !== stackId));
+          setEnvs((prev) => prev.filter((e) => e.StackId !== stackId));
         } else {
-          setEnvs(prev => prev.map(e => e.StackId === stackId ? { ...e, Status: 'ARCHIVED', DeletedAt: new Date().toISOString() } : e));
+          setEnvs((prev) =>
+            prev.map((e) =>
+              e.StackId === stackId
+                ? { ...e, Status: 'ARCHIVED', DeletedAt: new Date().toISOString() }
+                : e,
+            ),
+          );
         }
       } else {
         await deleteEnv(stackId, type);
@@ -256,11 +294,11 @@ function Dashboard({ signOut, user }) {
       // Map DB keys to Form keys if necessary (or just use what's there if compliant)
       // DB usually caps RepoName etc, but services list is JSON from input.
       // Let's assume input format is preserved.
-      const mapped = env.Services.map(s => ({
+      const mapped = env.Services.map((s) => ({
         repo: s.repo || s.Repo,
         branch: s.branch || s.Branch,
         buildspec: s.buildspec || s.Buildspec || 'buildspec.yml',
-        appspec: s.appspec || s.Appspec || 'appspec.yml'
+        appspec: s.appspec || s.Appspec || 'appspec.yml',
       }));
       setServices(mapped);
       alert('Configuration loaded! Please review and click Launch.');
@@ -271,14 +309,21 @@ function Dashboard({ signOut, user }) {
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
-        <h1>Branch Box 📦 {DEV_BYPASS_AUTH && <span style={{ fontSize: '0.8em', color: 'orange' }}>(Dev Mode)</span>}</h1>
+        <h1>
+          Branch Box 📦{' '}
+          {DEV_BYPASS_AUTH && (
+            <span style={{ fontSize: '0.8em', color: 'orange' }}>(Dev Mode)</span>
+          )}
+        </h1>
         <div className="user-info">
           <button className="settings-btn" onClick={() => setShowSettings(true)}>
             <span className={`status-indicator ${isConfigured ? 'configured' : 'missing'}`}></span>
             Settings
           </button>
           <span>Hello, {user?.username}</span>
-          <button onClick={signOut} className="sign-out-btn">Sign out</button>
+          <button onClick={signOut} className="sign-out-btn">
+            Sign out
+          </button>
         </div>
       </header>
 
@@ -294,16 +339,30 @@ function Dashboard({ signOut, user }) {
           <div className="card" style={{ borderLeft: '4px solid orange' }}>
             <h3>⚠️ Configuration Required</h3>
             <p>Please configure your GitHub App credentials in Settings to list repositories.</p>
-            <button onClick={() => setShowSettings(true)} className="primary-btn">Open Settings</button>
+            <button onClick={() => setShowSettings(true)} className="primary-btn">
+              Open Settings
+            </button>
           </div>
         )}
 
         <section className="create-section card">
           <h2>🚀 Launch New Environment</h2>
 
-          <div className="env-config-row" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+          <div
+            className="env-config-row"
+            style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}
+          >
             <div className="form-group" style={{ flex: 2 }}>
-              <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.9em', color: '#666' }}>Environment Name (Optional)</label>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '0.3rem',
+                  fontSize: '0.9em',
+                  color: '#666',
+                }}
+              >
+                Environment Name (Optional)
+              </label>
               <input
                 type="text"
                 placeholder="e.g. Project Alpha Demo"
@@ -314,7 +373,16 @@ function Dashboard({ signOut, user }) {
               />
             </div>
             <div className="form-group" style={{ flex: 1 }}>
-              <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.9em', color: '#666' }}>Auto Stop (KST)</label>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '0.3rem',
+                  fontSize: '0.9em',
+                  color: '#666',
+                }}
+              >
+                Auto Stop (KST)
+              </label>
               <select
                 value={stopTime}
                 onChange={(e) => setStopTime(e.target.value)}
@@ -324,12 +392,25 @@ function Dashboard({ signOut, user }) {
                 <option value="">Disabled (Run Forever)</option>
                 {Array.from({ length: 24 }).map((_, i) => {
                   const t = i.toString().padStart(2, '0') + ':00';
-                  return <option key={t} value={t}>{t}</option>;
+                  return (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  );
                 })}
               </select>
             </div>
             <div className="form-group" style={{ flex: 1 }}>
-              <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.9em', color: '#666' }}>Auto Start (KST)</label>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '0.3rem',
+                  fontSize: '0.9em',
+                  color: '#666',
+                }}
+              >
+                Auto Start (KST)
+              </label>
               <select
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
@@ -339,7 +420,11 @@ function Dashboard({ signOut, user }) {
                 <option value="">Disabled</option>
                 {Array.from({ length: 24 }).map((_, i) => {
                   const t = i.toString().padStart(2, '0') + ':00';
-                  return <option key={t} value={t}>{t}</option>;
+                  return (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  );
                 })}
               </select>
             </div>
@@ -351,18 +436,22 @@ function Dashboard({ signOut, user }) {
                 <div className="service-row">
                   <select
                     value={service.repo}
-                    onChange={e => handleServiceChange(index, 'repo', e.target.value)}
+                    onChange={(e) => handleServiceChange(index, 'repo', e.target.value)}
                     disabled={loading || (!isConfigured && !DEV_BYPASS_AUTH)}
                     className="input-field"
                   >
                     <option value="">Select Repository</option>
-                    {repos.map(r => <option key={r.id} value={r.full_name}>{r.full_name}</option>)}
+                    {repos.map((r) => (
+                      <option key={r.id} value={r.full_name}>
+                        {r.full_name}
+                      </option>
+                    ))}
                   </select>
                   <input
                     type="text"
                     placeholder="Branch Name"
                     value={service.branch}
-                    onChange={e => handleServiceChange(index, 'branch', e.target.value)}
+                    onChange={(e) => handleServiceChange(index, 'branch', e.target.value)}
                     disabled={loading}
                     className="input-field"
                   />
@@ -370,7 +459,7 @@ function Dashboard({ signOut, user }) {
                     type="text"
                     placeholder="Buildspec (def: buildspec.yml)"
                     value={service.buildspec}
-                    onChange={e => handleServiceChange(index, 'buildspec', e.target.value)}
+                    onChange={(e) => handleServiceChange(index, 'buildspec', e.target.value)}
                     disabled={loading}
                     className="input-field spec-input"
                   />
@@ -378,12 +467,16 @@ function Dashboard({ signOut, user }) {
                     type="text"
                     placeholder="Appspec (def: appspec.yml)"
                     value={service.appspec}
-                    onChange={e => handleServiceChange(index, 'appspec', e.target.value)}
+                    onChange={(e) => handleServiceChange(index, 'appspec', e.target.value)}
                     disabled={loading}
                     className="input-field spec-input"
                   />
                   {services.length > 1 && (
-                    <button onClick={() => handleRemoveService(index)} className="icon-btn delete-icon" title="Remove Service">
+                    <button
+                      onClick={() => handleRemoveService(index)}
+                      className="icon-btn delete-icon"
+                      title="Remove Service"
+                    >
                       ✕
                     </button>
                   )}
@@ -392,7 +485,9 @@ function Dashboard({ signOut, user }) {
             ))}
           </div>
           <div className="form-actions">
-            <button onClick={handleAddService} className="secondary-btn" disabled={loading}>+ Add Service</button>
+            <button onClick={handleAddService} className="secondary-btn" disabled={loading}>
+              + Add Service
+            </button>
             <button onClick={handleCreate} disabled={loading} className="primary-btn">
               {loading ? 'Launching...' : 'Launch Environment'}
             </button>
@@ -423,8 +518,12 @@ function Dashboard({ signOut, user }) {
                         Stack: {env.StackName || env.StackId?.substring(0, 8)}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                      <span className={`status-badge ${env.Status?.toLowerCase()}`}>{env.Status}</span>
+                    <div
+                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}
+                    >
+                      <span className={`status-badge ${env.Status?.toLowerCase()}`}>
+                        {env.Status}
+                      </span>
                       {env.Status === 'RUNNING' && env.StopTime && (
                         <span style={{ fontSize: '0.75em', marginTop: '0.3rem', color: '#f59e0b' }}>
                           🛑 Auto-Stop: {env.StopTime}
@@ -453,17 +552,33 @@ function Dashboard({ signOut, user }) {
                   </div>
                   <div className="env-footer">
                     {env.PublicIP && (
-                      <a href={`http://${env.PublicIP}`} target="_blank" rel="noreferrer" className="visit-btn">
+                      <a
+                        href={`http://${env.PublicIP}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="visit-btn"
+                      >
                         Open App ↗
                       </a>
                     )}
-                    <button onClick={() => handleDeploy(env)} className="visit-btn" style={{ borderColor: '#3b82f6', color: '#3b82f6' }}>
+                    <button
+                      onClick={() => handleDeploy(env)}
+                      className="visit-btn"
+                      style={{ borderColor: '#3b82f6', color: '#3b82f6' }}
+                    >
                       🚀 Deploy
                     </button>
-                    <button onClick={() => handleDelete(env.StackId, 'archive')} className="delete-btn">
+                    <button
+                      onClick={() => handleDelete(env.StackId, 'archive')}
+                      className="delete-btn"
+                    >
                       📦 Archive
                     </button>
-                    <button onClick={() => handleDelete(env.StackId, 'permanent')} className="delete-btn" style={{ borderColor: 'red', color: 'red' }}>
+                    <button
+                      onClick={() => handleDelete(env.StackId, 'permanent')}
+                      className="delete-btn"
+                      style={{ borderColor: 'red', color: 'red' }}
+                    >
                       💥 Destroy
                     </button>
                   </div>
@@ -481,7 +596,11 @@ function Dashboard({ signOut, user }) {
             </div>
             <div className="env-grid">
               {archivedEnvs.map((env) => (
-                <div key={env.StackId} className="env-card status-archived" style={{ filter: 'grayscale(100%)' }}>
+                <div
+                  key={env.StackId}
+                  className="env-card status-archived"
+                  style={{ filter: 'grayscale(100%)' }}
+                >
                   <div className="env-header">
                     <span className="env-id">{env.StackName || env.StackId?.substring(0, 8)}</span>
                     <span className="status-badge archived">ARCHIVED</span>
@@ -494,18 +613,30 @@ function Dashboard({ signOut, user }) {
                         </div>
                       ))}
                     </div>
-                    <div className="time-info">Deleted: {new Date(env.DeletedAt || Date.now()).toLocaleString()}</div>
+                    <div className="time-info">
+                      Deleted: {new Date(env.DeletedAt || Date.now()).toLocaleString()}
+                    </div>
                   </div>
                   <div className="env-footer">
-                    <button onClick={() => handleRelaunch(env)} className="visit-btn" style={{ borderColor: '#10b981', color: '#10b981' }}>📝 Relaunch</button>
-                    <button onClick={() => handleDelete(env.StackId, 'permanent')} className="delete-btn">❌ Delete Forever</button>
+                    <button
+                      onClick={() => handleRelaunch(env)}
+                      className="visit-btn"
+                      style={{ borderColor: '#10b981', color: '#10b981' }}
+                    >
+                      📝 Relaunch
+                    </button>
+                    <button
+                      onClick={() => handleDelete(env.StackId, 'permanent')}
+                      className="delete-btn"
+                    >
+                      ❌ Delete Forever
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
           </section>
         )}
-
       </main>
     </div>
   );
@@ -518,9 +649,7 @@ function App() {
 
   return (
     <Authenticator>
-      {({ signOut, user }) => (
-        <Dashboard signOut={signOut} user={user} />
-      )}
+      {({ signOut, user }) => <Dashboard signOut={signOut} user={user} />}
     </Authenticator>
   );
 }

@@ -1,5 +1,5 @@
-import { App } from "@octokit/app";
-import { request } from "@octokit/request";
+import { App } from '@octokit/app';
+import { request } from '@octokit/request';
 
 // These keys would typically come from Secrets Manager or SSM Parameter Store
 // For MVP/Demo, we assume they are available as environment variables
@@ -25,41 +25,40 @@ export const getInstallationAccessToken = async (appId, privateKey, installation
     // Logic:
     const targetInstallationId = installationId || (typeof appId === 'string' ? appId : undefined);
 
-    if (!targetInstallationId) throw new Error("Missing Installation ID");
+    if (!targetInstallationId) throw new Error('Missing Installation ID');
 
-    const { data: { token } } = await githubApp.octokit.request(
-        "POST /app/installations/{installation_id}/access_tokens",
-        {
-            installation_id: targetInstallationId,
-        }
-    );
+    const {
+        data: { token },
+    } = await githubApp.octokit.request('POST /app/installations/{installation_id}/access_tokens', {
+        installation_id: targetInstallationId,
+    });
     return token;
 };
 
 export const listRepositories = async (accessToken) => {
-    const { data } = await request("GET /installation/repositories", {
+    const { data } = await request('GET /installation/repositories', {
         headers: {
             authorization: `token ${accessToken}`,
         },
     });
-    return data.repositories.map(repo => ({
+    return data.repositories.map((repo) => ({
         id: repo.id,
         name: repo.name,
         full_name: repo.full_name,
         owner: repo.owner.login,
-        url: repo.html_url
+        url: repo.html_url,
     }));
 };
 
 export const listBranches = async (accessToken, owner, repo) => {
-    const { data } = await request("GET /repos/{owner}/{repo}/branches", {
+    const { data } = await request('GET /repos/{owner}/{repo}/branches', {
         owner,
         repo,
         headers: {
             authorization: `token ${accessToken}`,
         },
     });
-    return data.map(branch => ({
+    return data.map((branch) => ({
         name: branch.name,
         sha: branch.commit.sha,
     }));
@@ -67,7 +66,7 @@ export const listBranches = async (accessToken, owner, repo) => {
 
 export const downloadRepoArchive = async (accessToken, owner, repo, branch) => {
     console.log(`Downloading archive for ${owner}/${repo}@${branch}`);
-    const response = await request("GET /repos/{owner}/{repo}/zipball/{ref}", {
+    const response = await request('GET /repos/{owner}/{repo}/zipball/{ref}', {
         owner,
         repo,
         ref: branch,

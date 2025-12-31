@@ -1,4 +1,10 @@
-import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, UpdateStackCommand, DescribeStacksCommand } from "@aws-sdk/client-cloudformation";
+import {
+    CloudFormationClient,
+    CreateStackCommand,
+    DeleteStackCommand,
+    UpdateStackCommand,
+    DescribeStacksCommand,
+} from '@aws-sdk/client-cloudformation';
 
 const cfClient = new CloudFormationClient({});
 
@@ -14,8 +20,8 @@ const generateTemplate = (stackName, services) => {
         Parameters: {
             LatestAmiId: {
                 Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>',
-                Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64'
-            }
+                Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64',
+            },
         },
         Resources: {
             // --- Shared Resources ---
@@ -26,11 +32,11 @@ const generateTemplate = (stackName, services) => {
                 Properties: {
                     BucketEncryption: {
                         ServerSideEncryptionConfiguration: [
-                            { ServerSideEncryptionByDefault: { SSEAlgorithm: 'AES256' } }
-                        ]
+                            { ServerSideEncryptionByDefault: { SSEAlgorithm: 'AES256' } },
+                        ],
                     },
-                    VersioningConfiguration: { Status: 'Enabled' } // Required for Pipeline
-                }
+                    VersioningConfiguration: { Status: 'Enabled' }, // Required for Pipeline
+                },
             },
 
             // 2. IAM Roles
@@ -40,26 +46,38 @@ const generateTemplate = (stackName, services) => {
                 Properties: {
                     AssumeRolePolicyDocument: {
                         Version: '2012-10-17',
-                        Statement: [{ Effect: 'Allow', Principal: { Service: 'ec2.amazonaws.com' }, Action: 'sts:AssumeRole' }]
+                        Statement: [
+                            {
+                                Effect: 'Allow',
+                                Principal: { Service: 'ec2.amazonaws.com' },
+                                Action: 'sts:AssumeRole',
+                            },
+                        ],
                     },
                     ManagedPolicyArns: [
                         'arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforAWSCodeDeploy',
-                        'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore' // For Session Manager access
+                        'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore', // For Session Manager access
                     ],
                     Policies: [
                         {
                             PolicyName: 'S3Access',
                             PolicyDocument: {
                                 Version: '2012-10-17',
-                                Statement: [{ Effect: 'Allow', Action: ['s3:Get*', 's3:List*'], Resource: '*' }]
-                            }
-                        }
-                    ]
-                }
+                                Statement: [
+                                    {
+                                        Effect: 'Allow',
+                                        Action: ['s3:Get*', 's3:List*'],
+                                        Resource: '*',
+                                    },
+                                ],
+                            },
+                        },
+                    ],
+                },
             },
             EC2InstanceProfile: {
                 Type: 'AWS::IAM::InstanceProfile',
-                Properties: { Roles: [{ Ref: 'EC2Role' }] }
+                Properties: { Roles: [{ Ref: 'EC2Role' }] },
             },
 
             // CodePipeline Role
@@ -68,21 +86,29 @@ const generateTemplate = (stackName, services) => {
                 Properties: {
                     AssumeRolePolicyDocument: {
                         Version: '2012-10-17',
-                        Statement: [{ Effect: 'Allow', Principal: { Service: 'codepipeline.amazonaws.com' }, Action: 'sts:AssumeRole' }]
+                        Statement: [
+                            {
+                                Effect: 'Allow',
+                                Principal: { Service: 'codepipeline.amazonaws.com' },
+                                Action: 'sts:AssumeRole',
+                            },
+                        ],
                     },
-                    Policies: [{
-                        PolicyName: 'PipelinePolicy',
-                        PolicyDocument: {
-                            Version: '2012-10-17',
-                            Statement: [
-                                { Effect: 'Allow', Action: 's3:*', Resource: '*' },
-                                { Effect: 'Allow', Action: 'codebuild:*', Resource: '*' },
-                                { Effect: 'Allow', Action: 'codedeploy:*', Resource: '*' },
-                                { Effect: 'Allow', Action: 'iam:PassRole', Resource: '*' }
-                            ]
-                        }
-                    }]
-                }
+                    Policies: [
+                        {
+                            PolicyName: 'PipelinePolicy',
+                            PolicyDocument: {
+                                Version: '2012-10-17',
+                                Statement: [
+                                    { Effect: 'Allow', Action: 's3:*', Resource: '*' },
+                                    { Effect: 'Allow', Action: 'codebuild:*', Resource: '*' },
+                                    { Effect: 'Allow', Action: 'codedeploy:*', Resource: '*' },
+                                    { Effect: 'Allow', Action: 'iam:PassRole', Resource: '*' },
+                                ],
+                            },
+                        },
+                    ],
+                },
             },
 
             // CodeBuild Role
@@ -91,19 +117,27 @@ const generateTemplate = (stackName, services) => {
                 Properties: {
                     AssumeRolePolicyDocument: {
                         Version: '2012-10-17',
-                        Statement: [{ Effect: 'Allow', Principal: { Service: 'codebuild.amazonaws.com' }, Action: 'sts:AssumeRole' }]
+                        Statement: [
+                            {
+                                Effect: 'Allow',
+                                Principal: { Service: 'codebuild.amazonaws.com' },
+                                Action: 'sts:AssumeRole',
+                            },
+                        ],
                     },
-                    Policies: [{
-                        PolicyName: 'BuildPolicy',
-                        PolicyDocument: {
-                            Version: '2012-10-17',
-                            Statement: [
-                                { Effect: 'Allow', Action: 'logs:*', Resource: '*' },
-                                { Effect: 'Allow', Action: 's3:*', Resource: '*' }
-                            ]
-                        }
-                    }]
-                }
+                    Policies: [
+                        {
+                            PolicyName: 'BuildPolicy',
+                            PolicyDocument: {
+                                Version: '2012-10-17',
+                                Statement: [
+                                    { Effect: 'Allow', Action: 'logs:*', Resource: '*' },
+                                    { Effect: 'Allow', Action: 's3:*', Resource: '*' },
+                                ],
+                            },
+                        },
+                    ],
+                },
             },
 
             // CodeDeploy Service Role
@@ -112,10 +146,16 @@ const generateTemplate = (stackName, services) => {
                 Properties: {
                     AssumeRolePolicyDocument: {
                         Version: '2012-10-17',
-                        Statement: [{ Effect: 'Allow', Principal: { Service: 'codedeploy.amazonaws.com' }, Action: 'sts:AssumeRole' }]
+                        Statement: [
+                            {
+                                Effect: 'Allow',
+                                Principal: { Service: 'codedeploy.amazonaws.com' },
+                                Action: 'sts:AssumeRole',
+                            },
+                        ],
                     },
-                    ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole']
-                }
+                    ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole'],
+                },
             },
 
             // 3. EC2 Instance
@@ -128,10 +168,11 @@ const generateTemplate = (stackName, services) => {
                     SecurityGroups: ['default'], // Setup proper SG in prod
                     Tags: [
                         { Key: 'Name', Value: `BranchBox-${stackName}` },
-                        { Key: 'EnvType', Value: 'BranchBox' } // For CodeDeploy Tag Filter
+                        { Key: 'EnvType', Value: 'BranchBox' }, // For CodeDeploy Tag Filter
                     ],
                     UserData: {
-                        'Fn::Base64': Buffer.from(`#!/bin/bash
+                        'Fn::Base64': Buffer.from(
+                            `#!/bin/bash
 dnf update -y
 dnf install -y ruby wget
 # Install CodeDeploy Agent
@@ -147,15 +188,16 @@ systemctl enable docker
 usermod -aG docker ec2-user
 # Install Docker Compose
 dnf install -y docker-compose-plugin
-`).toString('base64')
-                    }
-                }
+`,
+                        ).toString('base64'),
+                    },
+                },
             },
 
             // 4. CodeDeploy Application (Shared)
             SharedApplication: {
                 Type: 'AWS::CodeDeploy::Application',
-                Properties: { ComputePlatform: 'Server' }
+                Properties: { ComputePlatform: 'Server' },
             },
 
             // Deployment Group (Targets the EC2)
@@ -166,16 +208,16 @@ dnf install -y docker-compose-plugin
                     ServiceRoleArn: { 'Fn::GetAtt': ['CodeDeployRole', 'Arn'] },
                     DeploymentConfigName: 'CodeDeployDefault.OneAtATime',
                     Ec2TagFilters: [
-                        { Key: 'Name', Value: `BranchBox-${stackName}`, Type: 'KEY_AND_VALUE' }
-                    ]
-                }
-            }
+                        { Key: 'Name', Value: `BranchBox-${stackName}`, Type: 'KEY_AND_VALUE' },
+                    ],
+                },
+            },
         },
         Outputs: {
             PublicIP: { Value: { 'Fn::GetAtt': ['DevInstance', 'PublicIp'] } },
             InstanceId: { Value: { Ref: 'DevInstance' } },
-            ArtifactBucketName: { Value: { Ref: 'ArtifactBucket' } }
-        }
+            ArtifactBucketName: { Value: { Ref: 'ArtifactBucket' } },
+        },
     };
 
     // --- Dynamic Resources (Per Service) ---
@@ -197,8 +239,8 @@ dnf install -y docker-compose-plugin
                     Type: 'LINUX_CONTAINER',
                     EnvironmentVariables: [
                         { Name: 'BUILDSPEC_PATH', Value: svc.buildspec || 'buildspec.yml' },
-                        { Name: 'APPSPEC_PATH', Value: svc.appspec || 'appspec.yml' }
-                    ]
+                        { Name: 'APPSPEC_PATH', Value: svc.appspec || 'appspec.yml' },
+                    ],
                 },
                 Source: {
                     Type: 'CODEPIPELINE',
@@ -231,8 +273,8 @@ phases:
 artifacts:
   files:
     - '**/*'
-`
-                }
+`,
+                },
                 // Note: If we use inline BuildSpec, we can't easily run the user's buildspec commands unless we `eval`.
                 // Better approach for MVP: Trust the repo has buildspec.yml and appspec.yml at root OR user configured paths correctly.
                 // If user customized paths, we DO need to move them.
@@ -241,7 +283,7 @@ artifacts:
                 // Real usage: They need to build (npm install).
                 // Let's use the INLINE buildspec to run the user's buildspec commands? Too hard.
                 // Start with: "Copy files" mode.
-            }
+            },
         };
 
         // 6. CodePipeline
@@ -251,51 +293,72 @@ artifacts:
                 RoleArn: { 'Fn::GetAtt': ['PipelineRole', 'Arn'] },
                 ArtifactStore: {
                     Type: 'S3',
-                    Location: { Ref: 'ArtifactBucket' }
+                    Location: { Ref: 'ArtifactBucket' },
                 },
                 Stages: [
                     {
                         Name: 'Source',
-                        Actions: [{
-                            Name: 'S3Source',
-                            ActionTypeId: { Category: 'Source', Owner: 'AWS', Provider: 'S3', Version: '1' },
-                            OutputArtifacts: [{ Name: 'SourceArtifact' }],
-                            Configuration: {
-                                S3Bucket: { Ref: 'ArtifactBucket' },
-                                S3ObjectKey: `sources/${uniqueId}.zip`, // Key where we upload
-                                PollForSourceChanges: 'true'
+                        Actions: [
+                            {
+                                Name: 'S3Source',
+                                ActionTypeId: {
+                                    Category: 'Source',
+                                    Owner: 'AWS',
+                                    Provider: 'S3',
+                                    Version: '1',
+                                },
+                                OutputArtifacts: [{ Name: 'SourceArtifact' }],
+                                Configuration: {
+                                    S3Bucket: { Ref: 'ArtifactBucket' },
+                                    S3ObjectKey: `sources/${uniqueId}.zip`, // Key where we upload
+                                    PollForSourceChanges: 'true',
+                                },
+                                RunOrder: 1,
                             },
-                            RunOrder: 1
-                        }]
+                        ],
                     },
                     {
                         Name: 'Build',
-                        Actions: [{
-                            Name: 'CodeBuild',
-                            ActionTypeId: { Category: 'Build', Owner: 'AWS', Provider: 'CodeBuild', Version: '1' },
-                            InputArtifacts: [{ Name: 'SourceArtifact' }],
-                            OutputArtifacts: [{ Name: 'BuildArtifact' }],
-                            Configuration: {
-                                ProjectName: { Ref: `BuildProject${uniqueId}` }
+                        Actions: [
+                            {
+                                Name: 'CodeBuild',
+                                ActionTypeId: {
+                                    Category: 'Build',
+                                    Owner: 'AWS',
+                                    Provider: 'CodeBuild',
+                                    Version: '1',
+                                },
+                                InputArtifacts: [{ Name: 'SourceArtifact' }],
+                                OutputArtifacts: [{ Name: 'BuildArtifact' }],
+                                Configuration: {
+                                    ProjectName: { Ref: `BuildProject${uniqueId}` },
+                                },
+                                RunOrder: 1,
                             },
-                            RunOrder: 1
-                        }]
+                        ],
                     },
                     {
                         Name: 'Deploy',
-                        Actions: [{
-                            Name: 'CodeDeploy',
-                            ActionTypeId: { Category: 'Deploy', Owner: 'AWS', Provider: 'CodeDeploy', Version: '1' },
-                            InputArtifacts: [{ Name: 'BuildArtifact' }],
-                            Configuration: {
-                                ApplicationName: { Ref: 'SharedApplication' },
-                                DeploymentGroupName: { Ref: 'SharedDeploymentGroup' }
+                        Actions: [
+                            {
+                                Name: 'CodeDeploy',
+                                ActionTypeId: {
+                                    Category: 'Deploy',
+                                    Owner: 'AWS',
+                                    Provider: 'CodeDeploy',
+                                    Version: '1',
+                                },
+                                InputArtifacts: [{ Name: 'BuildArtifact' }],
+                                Configuration: {
+                                    ApplicationName: { Ref: 'SharedApplication' },
+                                    DeploymentGroupName: { Ref: 'SharedDeploymentGroup' },
+                                },
+                                RunOrder: 1,
                             },
-                            RunOrder: 1
-                        }]
-                    }
-                ]
-            }
+                        ],
+                    },
+                ],
+            },
         };
     });
 
@@ -312,14 +375,14 @@ export const createEnvironmentStack = async (services) => {
         StackName: stackName,
         TemplateBody: templateBody,
         Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
-        Tags: [{ Key: 'BranchBoxManaged', Value: 'true' }]
+        Tags: [{ Key: 'BranchBoxManaged', Value: 'true' }],
     });
 
     try {
         const response = await cfClient.send(command);
         return { stackId: response.StackId, stackName, services };
     } catch (error) {
-        console.error("Error creating stack:", error);
+        console.error('Error creating stack:', error);
         throw error;
     }
 };
@@ -334,7 +397,7 @@ export const deleteEnvironmentStack = async (stackNameOrId) => {
         await cfClient.send(command);
         return true;
     } catch (error) {
-        console.error("Error deleting stack:", error);
+        console.error('Error deleting stack:', error);
         throw error;
     }
 };

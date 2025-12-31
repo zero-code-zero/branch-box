@@ -34,7 +34,7 @@ Resources:
             DomainName: !GetAtt FrontendBucket.DomainName
             OriginAccessControlId: !GetAtt FrontendOAC.Id
             S3OriginConfig:
-              OriginAccessIdentity: ""
+              OriginAccessIdentity: ''
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
@@ -63,10 +63,10 @@ Resources:
             Principal:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
-            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Resource: !Sub '${FrontendBucket.Arn}/*'
             Condition:
               StringEquals:
-                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}'
 
 Outputs:
   WebsiteURL:

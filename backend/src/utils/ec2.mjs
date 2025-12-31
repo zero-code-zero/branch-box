@@ -1,4 +1,9 @@
-import { EC2Client, StopInstancesCommand, StartInstancesCommand, DescribeInstancesCommand } from "@aws-sdk/client-ec2";
+import {
+    EC2Client,
+    StopInstancesCommand,
+    StartInstancesCommand,
+    DescribeInstancesCommand,
+} from '@aws-sdk/client-ec2';
 
 const ec2Client = new EC2Client({});
 
@@ -25,13 +30,13 @@ export const startInstance = async (instanceId) => {
 };
 
 export const getInstanceStatus = async (instanceId) => {
-    if (!instanceId) return "UNKNOWN";
+    if (!instanceId) return 'UNKNOWN';
     try {
         const command = new DescribeInstancesCommand({ InstanceIds: [instanceId] });
         const res = await ec2Client.send(command);
-        return res.Reservations[0]?.Instances[0]?.State?.Name || "UNKNOWN";
+        return res.Reservations[0]?.Instances[0]?.State?.Name || 'UNKNOWN';
     } catch (err) {
         console.error(err);
-        return "UNKNOWN";
+        return 'UNKNOWN';
     }
-}
+};

@@ -1,0 +1,35 @@
+{
+  "name": "branch-box",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "husky"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zero-code-zero/branch-box.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/zero-code-zero/branch-box/issues"
+  },
+  "homepage": "https://github.com/zero-code-zero/branch-box#readme",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7"
+  },
+  "lint-staged": {
+    "backend/src/**/*.{js,mjs}": [
+      "npm run lint --prefix backend/src",
+      "npm run format --prefix backend/src"
+    ],
+    "frontend/src/**/*.{js,jsx,ts,tsx}": [
+      "npm run lint --prefix frontend"
+    ]
+  }
+}

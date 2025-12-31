@@ -1,10 +1,26 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand, PutCommand, DeleteCommand, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { listRepositories, getInstallationAccessToken, listBranches, downloadRepoArchive } from "./utils/github.mjs";
-import { createEnvironmentStack, deleteEnvironmentStack, getStackOutputs } from "./utils/cloudformation.mjs";
-import { stopInstance } from "./utils/ec2.mjs";
-import { saveGithubConfig, getGithubConfig } from "./utils/ssm.mjs";
-import { uploadSourceZip } from "./utils/s3.mjs";
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import {
+    DynamoDBDocumentClient,
+    ScanCommand,
+    PutCommand,
+    DeleteCommand,
+    GetCommand,
+    UpdateCommand,
+} from '@aws-sdk/lib-dynamodb';
+import {
+    listRepositories,
+    getInstallationAccessToken,
+    listBranches,
+    downloadRepoArchive,
+} from './utils/github.mjs';
+import {
+    createEnvironmentStack,
+    deleteEnvironmentStack,
+    getStackOutputs,
+} from './utils/cloudformation.mjs';
+import { stopInstance } from './utils/ec2.mjs';
+import { saveGithubConfig, getGithubConfig } from './utils/ssm.mjs';
+import { uploadSourceZip } from './utils/s3.mjs';
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
@@ -12,7 +28,7 @@ const TABLE_NAME = process.env.TABLE_NAME;
 
 const response = (statusCode, body) => ({
     statusCode,
-    headers: { "Content-Type": "application/json" },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
 });
 
@@ -21,7 +37,7 @@ const deployServiceSource = async (stackName, services, accessToken) => {
     // 1. Get Bucket Name
     const outputs = await getStackOutputs(stackName);
     const bucketName = outputs.ArtifactBucketName;
-    if (!bucketName) throw new Error("ArtifactBucketName not found");
+    if (!bucketName) throw new Error('ArtifactBucketName not found');
 
     const results = [];
     // 2. Process each service
@@ -46,20 +62,20 @@ export const managerHandler = async (event) => {
 
     try {
         // --- Config Management ---
-        if (event.routeKey === "POST /config") {
+        if (event.routeKey === 'POST /config') {
             const { appId, installationId, privateKey, clientSecret } = JSON.parse(event.body);
             await saveGithubConfig(appId, installationId, privateKey, clientSecret);
             return response(200, { message: 'Configuration saved' });
         }
 
-        if (event.routeKey === "GET /config") {
+        if (event.routeKey === 'GET /config') {
             try {
                 const config = await getGithubConfig();
                 const exists = !!(config.appId && config.privateKey);
                 return response(200, {
                     configured: exists,
                     appId: config.appId || null,
-                    installationId: config.installationId || null
+                    installationId: config.installationId || null,
                 });
             } catch (e) {
                 return response(200, { configured: false });
@@ -77,26 +93,26 @@ export const managerHandler = async (event) => {
             try {
                 accessToken = await getInstallationAccessToken(appId, privateKey, installationId);
             } catch (e) {
-                console.warn("Failed to get GitHub access token:", e.message);
+                console.warn('Failed to get GitHub access token:', e.message);
             }
         }
 
         // GET /repos
-        if (event.routeKey === "GET /repos") {
-            if (!accessToken) return response(401, { error: "GitHub App not configured" });
+        if (event.routeKey === 'GET /repos') {
+            if (!accessToken) return response(401, { error: 'GitHub App not configured' });
             const repos = await listRepositories(accessToken);
             return response(200, repos);
         }
 
         // GET /envs
-        if (event.routeKey === "GET /envs") {
+        if (event.routeKey === 'GET /envs') {
             const command = new ScanCommand({ TableName: TABLE_NAME });
             const result = await docClient.send(command);
             return response(200, result.Items);
         }
 
         // POST /envs (Create Stack)
-        if (event.routeKey === "POST /envs") {
+        if (event.routeKey === 'POST /envs') {
             const body = JSON.parse(event.body);
             let services = body.services;
             const alias = body.name || '';
@@ -109,8 +125,9 @@ export const managerHandler = async (event) => {
                 services = [{ repo: body.repo, branch: body.branch }];
             }
 
-            if (!accessToken) return response(401, { error: "GitHub App not configured" });
-            if (!services || services.length === 0) return response(400, { error: "Missing services" });
+            if (!accessToken) return response(401, { error: 'GitHub App not configured' });
+            if (!services || services.length === 0)
+                return response(400, { error: 'Missing services' });
 
             // 1. Trigger CloudFormation
             // Pass alias to help name the stack? Or just keep it generic.
@@ -127,36 +144,38 @@ export const managerHandler = async (event) => {
                 Alias: alias,
                 StopTime: stopTime,
                 StartTime: startTime,
-                Status: "CREATING",
+                Status: 'CREATING',
                 CreatedAt: new Date().toISOString(),
                 Services: services,
-                Owner: "user"
+                Owner: 'user',
             };
 
-            await docClient.send(new PutCommand({
-                TableName: TABLE_NAME,
-                Item: item
-            }));
+            await docClient.send(
+                new PutCommand({
+                    TableName: TABLE_NAME,
+                    Item: item,
+                }),
+            );
 
             return response(201, item);
         }
 
         // POST /deploy (Manual Trigger)
-        if (event.routeKey === "POST /deploy") {
+        if (event.routeKey === 'POST /deploy') {
             const body = JSON.parse(event.body);
             const { stackName, services } = body; // Expects full service list or fetches from DB?
-            // If UI passes services, great. If not, we might need to fetch. 
+            // If UI passes services, great. If not, we might need to fetch.
             // UI should pass it for simplicity now as it has state.
 
-            if (!accessToken) return response(401, { error: "GitHub App not configured" });
+            if (!accessToken) return response(401, { error: 'GitHub App not configured' });
 
             await deployServiceSource(stackName, services, accessToken);
 
-            return response(200, { message: "Deployment triggered" });
+            return response(200, { message: 'Deployment triggered' });
         }
 
         // DELETE /envs
-        if (event.routeKey === "DELETE /envs") {
+        if (event.routeKey === 'DELETE /envs') {
             const stackId = event.queryStringParameters?.stackId;
             let dbKey = null;
 
@@ -164,8 +183,8 @@ export const managerHandler = async (event) => {
             if (stackId) {
                 const scanCmd = new ScanCommand({
                     TableName: TABLE_NAME,
-                    FilterExpression: "StackId = :sid",
-                    ExpressionAttributeValues: { ":sid": stackId }
+                    FilterExpression: 'StackId = :sid',
+                    ExpressionAttributeValues: { ':sid': stackId },
                 });
                 const { Items } = await docClient.send(scanCmd);
                 if (Items && Items.length > 0) {
@@ -176,7 +195,7 @@ export const managerHandler = async (event) => {
                 if (repo && branch) dbKey = { RepoName: repo, BranchName: branch };
             }
 
-            if (!dbKey) return response(404, { error: "Environment not found" });
+            if (!dbKey) return response(404, { error: 'Environment not found' });
 
             // Delete Stack
             const getCmd = new GetCommand({ TableName: TABLE_NAME, Key: dbKey });
@@ -187,11 +206,10 @@ export const managerHandler = async (event) => {
                 await docClient.send(new DeleteCommand({ TableName: TABLE_NAME, Key: dbKey }));
             }
 
-            return response(200, { message: "Environment deleting" });
+            return response(200, { message: 'Environment deleting' });
         }
 
-        return response(404, { error: "Route not found" });
-
+        return response(404, { error: 'Route not found' });
     } catch (error) {
         console.error(error);
         return response(500, { error: error.message });
@@ -218,7 +236,9 @@ export const webhookHandler = async (event) => {
                 // If webhook event has installation id, use it preferably?
                 // But for now use stored config.
                 accessToken = await getInstallationAccessToken(appId, privateKey, installationId);
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(e);
+            }
         }
 
         if (githubEvent === 'push') {
@@ -232,27 +252,28 @@ export const webhookHandler = async (event) => {
             const scanCmd = new ScanCommand({ TableName: TABLE_NAME });
             const { Items } = await docClient.send(scanCmd);
 
-            const targetEnv = Items.find(item =>
-                item.Services && item.Services.some(s => s.repo === repoName && s.branch === branchName)
+            const targetEnv = Items.find(
+                (item) =>
+                    item.Services &&
+                    item.Services.some((s) => s.repo === repoName && s.branch === branchName),
             );
 
             if (targetEnv) {
                 console.log(`Found environment: ${targetEnv.StackName}. Triggering deploy.`);
                 if (accessToken) {
                     await deployServiceSource(targetEnv.StackName, targetEnv.Services, accessToken);
-                    console.log("Deploy triggered successfully.");
+                    console.log('Deploy triggered successfully.');
                 } else {
-                    console.error("No access token available for deploy.");
+                    console.error('No access token available for deploy.');
                 }
             } else {
-                console.log("No environment configuration found for this repo/branch.");
+                console.log('No environment configuration found for this repo/branch.');
             }
         }
 
         // ... (Keep existing PR/Delete logic if needed, but omitted for brevity/focus on Push)
 
         return response(200, { message: 'Webhook processed' });
-
     } catch (error) {
         console.error(error);
         return response(500, { error: error.message });
@@ -268,9 +289,9 @@ export const schedulerHandler = async (event) => {
     try {
         const scanCmd = new ScanCommand({
             TableName: TABLE_NAME,
-            FilterExpression: "#s = :r",
-            ExpressionAttributeNames: { "#s": "Status" },
-            ExpressionAttributeValues: { ":r": "RUNNING" }
+            FilterExpression: '#s = :r',
+            ExpressionAttributeNames: { '#s': 'Status' },
+            ExpressionAttributeValues: { ':r': 'RUNNING' },
         });
         const { Items } = await docClient.send(scanCmd);
 
@@ -284,22 +305,24 @@ export const schedulerHandler = async (event) => {
             if (targetHour === kstHour) {
                 console.log(`Stopping ${item.StackName} (Scheduled: ${targetTimeStr} KST)`);
                 // Mark as STOPPED in DB (Simulating stop for now)
-                await docClient.send(new UpdateCommand({
-                    TableName: TABLE_NAME,
-                    Key: { RepoName: item.RepoName, BranchName: item.BranchName },
-                    UpdateExpression: "set #s = :s",
-                    ExpressionAttributeNames: { "#s": "Status" },
-                    ExpressionAttributeValues: { ":s": "STOPPED" }
-                }));
+                await docClient.send(
+                    new UpdateCommand({
+                        TableName: TABLE_NAME,
+                        Key: { RepoName: item.RepoName, BranchName: item.BranchName },
+                        UpdateExpression: 'set #s = :s',
+                        ExpressionAttributeNames: { '#s': 'Status' },
+                        ExpressionAttributeValues: { ':s': 'STOPPED' },
+                    }),
+                );
             }
         }
 
         // --- Auto Start Logic ---
         const scanStoppedCmd = new ScanCommand({
             TableName: TABLE_NAME,
-            FilterExpression: "#s = :r",
-            ExpressionAttributeNames: { "#s": "Status" },
-            ExpressionAttributeValues: { ":r": "STOPPED" }
+            FilterExpression: '#s = :r',
+            ExpressionAttributeNames: { '#s': 'Status' },
+            ExpressionAttributeValues: { ':r': 'STOPPED' },
         });
         const { Items: stoppedItems } = await docClient.send(scanStoppedCmd);
 
@@ -312,17 +335,19 @@ export const schedulerHandler = async (event) => {
             if (targetHour === kstHour) {
                 console.log(`Starting ${item.StackName} (Scheduled: ${targetTimeStr} KST)`);
                 // Mark as RUNNING in DB (Simulating start)
-                await docClient.send(new UpdateCommand({
-                    TableName: TABLE_NAME,
-                    Key: { RepoName: item.RepoName, BranchName: item.BranchName },
-                    UpdateExpression: "set #s = :s",
-                    ExpressionAttributeNames: { "#s": "Status" },
-                    ExpressionAttributeValues: { ":s": "RUNNING" }
-                }));
+                await docClient.send(
+                    new UpdateCommand({
+                        TableName: TABLE_NAME,
+                        Key: { RepoName: item.RepoName, BranchName: item.BranchName },
+                        UpdateExpression: 'set #s = :s',
+                        ExpressionAttributeNames: { '#s': 'Status' },
+                        ExpressionAttributeValues: { ':s': 'RUNNING' },
+                    }),
+                );
             }
         }
     } catch (e) {
-        console.error("Scheduler failed:", e);
+        console.error('Scheduler failed:', e);
     }
     return response(200, { message: 'Scheduler finished' });
 };
