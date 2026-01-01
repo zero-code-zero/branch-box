@@ -365,18 +365,25 @@ artifacts:
     return JSON.stringify(template);
 };
 
-export const createEnvironmentStack = async (services) => {
+export const createEnvironmentStack = async (services, roleArn) => {
     // services: [{ repo, branch, ... }]
     const timestamp = Date.now().toString().slice(-6);
     const stackName = `BB-Env-${timestamp}`;
     const templateBody = generateTemplate(stackName, services);
 
-    const command = new CreateStackCommand({
+    const params = {
         StackName: stackName,
         TemplateBody: templateBody,
         Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
         Tags: [{ Key: 'BranchBoxManaged', Value: 'true' }],
-    });
+    };
+
+    // If Service Role is provided (Production Mode), use it.
+    if (roleArn) {
+        params.RoleARN = roleArn;
+    }
+
+    const command = new CreateStackCommand(params);
 
     try {
         const response = await cfClient.send(command);

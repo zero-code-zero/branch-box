@@ -27,14 +27,31 @@
 -   **Auth**: Amazon Cognito
 -   **Scheduling**: Amazon EventBridge Scheduler
 
-## Prerequisites
+### GitHub App Setup (Required)
 
-Before running this project, ensure you have the following installed:
+To allow Branch-Box to detect branches and download code, you must create a GitHub App.
 
--   [Node.js](https://nodejs.org/) (v20 or later recommended)
--   [AWS CLI](https://aws.amazon.com/cli/) (configured with appropriate credentials)
--   [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
--   [Git](https://git-scm.com/)
+1.  **Create GitHub App**:
+    - Go to **Settings > Developer settings > GitHub Apps > New GitHub App**.
+    - **Name**: `Branch-Box-YourName`
+    - **Homepage URL**: Your CloudFront URL (or `http://localhost:5173` for dev).
+    - **Webhook URL**: The **ApiEndpoint** + `/webhook` (e.g., `https://api.xyz.com/webhook`).
+    - **Permissions**:
+        - `Contents`: Read-only (to download code).
+        - `Metadata`: Read-only.
+    - **Events**: `Push`, `Pull Request`.
+
+2.  **Install App**:
+    - After creating, click **Install App** on the left menu and install it on your repository.
+
+3.  **Get Credentials**:
+    - Note the **App ID**.
+    - Generate and download a **Private Key** (`.pem` file).
+
+4.  **Configure Dashboard**:
+    - Open your deployed Branch-Box Dashboard.
+    - Click **Settings** in the top right.
+    - Enter your **App ID**, **Installation ID** (found in URL after install), and the content of your **Private Key**.
 
 ## Installation
 
@@ -65,44 +82,111 @@ Before running this project, ensure you have the following installed:
 
 ## Usage
 
-### Running Locally (Frontend)
+Branch-Box can be run in two modes: **Dev Mode** (Local) and **Production Mode** (Cloud).
 
-To start the frontend development server:
+### 1. Dev Mode (Local Development)
+Ideal for UI development without connecting to real AWS resources. It mocks API responses and bypasses authentication.
 
-```bash
-cd frontend
-npm run dev
-```
+1.  **Create a `.env` file** in the `frontend` directory:
+    ```bash
+    echo "VITE_DEV_MODE=true" > frontend/.env
+    ```
 
-The application will be available at `http://localhost:5173`.
+2.  **Start the frontend**:
+    ```bash
+    cd frontend
+    npm run dev
+    ```
 
-> **Note**: The frontend requires a backend API. Ensure you have deployed the backend or have a local emulator running.
+3.  Open `http://localhost:5173`. You will see a **(Dev Mode)** indicator and can use the dashboard with mock data.
 
-### Deploying Backend (AWS)
+### 2. Production Mode (Cloud Connected)
+Connects to the real AWS backend (`api setup required`).
 
-To deploy the serverless backend to your AWS account:
+1.  **Ensure `.env` does NOT have `VITE_DEV_MODE=true`** (or set it to `false`).
+2.  **Start the frontend**:
+    ```bash
+    npm run dev
+    ```
+3.  The app will redirect to the **Cognito Login Page**.
+4.  After login, it will make real API calls to your AWS API Gateway.
+
+
+### AWS Credentials Setup
+Before deploying, you must configure your AWS credentials to allow the CLI tools to create resources on your behalf.
+
+1.  **Create an IAM User**:
+    - Go to the AWS IAM Console.
+    - Create a user with `AdministratorAccess` (or sufficient permissions for CloudFormation, S3, IAM, etc.).
+    - Generate an **Access Key** and **Secret Access Key** for this user.
+
+2.  **Configure CLI**:
+    Run the following command and enter your keys when prompted:
+    ```bash
+    aws configure
+    ```
+    - **Region**: `ap-northeast-2` (or your preferred region)
+    - **Output format**: `json`
+
+### Cloud Deployment (Production)
+
+This project uses **AWS SAM** for the backend and **S3 + CloudFront** for the frontend.
+
+#### 1. Deploy Backend & Infrastructure
+This step creates the API, Database, Auth, and the Frontend Hosting infrastructure (S3 Bucket & CloudFront).
 
 1.  Navigate to the backend directory:
     ```bash
     cd backend
     ```
 
-2.  Build and Deploy using SAM:
+2.  Build and Deploy:
     ```bash
     sam build
     sam deploy --guided
     ```
+    - **Stack Name**: `branch-box`
+    - **Region**: `ap-northeast-2`
+    - **Confirm changes**: `y`
+    - **Allow IAM role creation**: `y`
+    - **Save arguments**: `y`
 
-    Follow the prompts to configure:
-    -   **Stack Name**: e.g., `branch-box-backend`
-    -   **AWS Region**: e.g., `ap-northeast-2`
-    -   **Parameter Overrides**: defaults are usually fine
-    -   **Confirm changes before deploy**: `y`
-    -   **Allow SAM CLI IAM role creation**: `y`
+3.  **Note the Outputs**:
+    After a successful deploy, the terminal will show important outputs. Copy these values:
+    - `ApiEndpoint`
+    - `UserPoolId`
+    - `UserPoolClientId`
+    - `FrontendBucketName` (e.g., `branch-box-frontendbucket-xxxx`)
+    - `FrontendUrl` (e.g., `https://d1234.cloudfront.net`)
 
-3.  **Post-Deployment**:
-    -   Note the **API Gateway Endpoint URL** and **Cognito User Pool IDs** from the `sam deploy` outputs.
-    -   Update the frontend configuration (e.g., `.env` file) with these values.
+#### 2. Build & Deploy Frontend
+Now, build the React application and upload it to the newly created S3 bucket.
+
+1.  Navigate to the frontend directory:
+    ```bash
+    cd ../frontend
+    ```
+
+2.  **Build**:
+    The build process will automatically use the environment variables from your setup if configured, or you can create a `.env.production` file.
+    ```bash
+    npm run build
+    ```
+
+3.  **Upload to S3**:
+    Replace `[FrontendBucketName]` with the actual bucket name from the backend outputs.
+    ```bash
+    aws s3 sync ./dist s3://[FrontendBucketName] --delete
+    ```
+
+4.  **Invalidate Cache (Optional)**:
+    If updating an existing deployment, invalidate the CloudFront cache to see changes immediately.
+    ```bash
+    aws cloudfront create-invalidation --distribution-id [DistributionID] --paths "/*"
+    ```
+
+#### 3. Access the Application
+Open the **FrontendUrl** (e.g., `https://d1234.cloudfront.net`) in your browser. You should see the Branch-Box login page.
 
 ## Architecture Highlights
 

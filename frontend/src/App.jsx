@@ -8,7 +8,7 @@ import './App.css';
 
 Amplify.configure(awsConfig);
 
-const DEV_BYPASS_AUTH = true; // Set to false to enable Cognito
+const DEV_BYPASS_AUTH = import.meta.env.VITE_DEV_MODE === 'true'; // Set VITE_DEV_MODE='true' in .env for Local Dev
 
 function SettingsModal({ isOpen, onClose, onSave, loading }) {
   const [formData, setFormData] = useState({

@@ -1,20 +1,21 @@
-// This file will be automatically updated or manually configured after deployment
-// For now, these are placeholders.
+// This file is automatically configured via environment variables
+// Local development falls back to placeholders or .env.local values
 const awsConfig = {
   Auth: {
     Cognito: {
-      userPoolId: 'ap-northeast-2_PLACEHOLDER', // Replace with Output from SAM Deploy
-      userPoolClientId: 'PLACEHOLDER_CLIENT_ID', // Replace with Output from SAM Deploy
+      userPoolId: import.meta.env.VITE_USER_POOL_ID || 'ap-northeast-2_PLACEHOLDER',
+      userPoolClientId: import.meta.env.VITE_USER_POOL_CLIENT_ID || 'PLACEHOLDER_CLIENT_ID',
     },
   },
   API: {
     REST: {
       BranchBoxAPI: {
-        endpoint: 'https://PLACEHOLDER.execute-api.ap-northeast-2.amazonaws.com', // Replace with Output
-        region: 'ap-northeast-2',
+        endpoint: import.meta.env.VITE_API_ENDPOINT || 'https://PLACEHOLDER.execute-api.ap-northeast-2.amazonaws.com',
+        region: import.meta.env.VITE_AWS_REGION || 'ap-northeast-2',
       },
     },
   },
 };
 
 export default awsConfig;
+

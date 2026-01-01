@@ -130,9 +130,10 @@ export const managerHandler = async (event) => {
                 return response(400, { error: 'Missing services' });
 
             // 1. Trigger CloudFormation
+            const cfServiceRoleArn = process.env.CF_SERVICE_ROLE_ARN;
             // Pass alias to help name the stack? Or just keep it generic.
             // Let's keep stack name generic (safe) but store Alias in DB.
-            const { stackId, stackName } = await createEnvironmentStack(services);
+            const { stackId, stackName } = await createEnvironmentStack(services, cfServiceRoleArn);
 
             // 2. Save to DynamoDB
             const mainService = services[0];

@@ -1,6 +1,137 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Branch-Box Backend Infrastructure
+Description: Branch-Box Backend Infrastructure and Frontend Hosting
+
+Parameters:
+  FrontendDomain:
+    Type: String
+    Description: Optional custom domain for CloudFront (leave empty if none)
+    Default: ""
+
+Results:
+  # --- Frontend Hosting ---
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
+
+  FrontendOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-OAC"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.DomainName
+            OriginAccessControlId: !GetAtt FrontendOAC.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
+  # --- Backend IAM Roles ---
+
+  # Service Role for CloudFormation (Passed by Lambda)
+  # This role allows CloudFormation to create resources on behalf of the Lambda
+  CFDeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DeploymentPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # EC2 & VPC
+              - Effect: Allow
+                Action:
+                  - ec2:*
+                Resource: "*"
+              # IAM (PassRole is critical for assigning roles to EC2/CodeBuild)
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:CreateInstanceProfile
+                  - iam:DeleteInstanceProfile
+                  - iam:AddRoleToInstanceProfile
+                  - iam:RemoveRoleFromInstanceProfile
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                Resource: "*"
+              # S3 (Artifact Buckets)
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource: "*"
+              # CodePipeline & Related
+              - Effect: Allow
+                Action:
+                  - codepipeline:*
+                  - codebuild:*
+                  - codedeploy:*
+                Resource: "*"
+              # System Manager
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameters
+                Resource: "*"
 
 Resources:
   # DynamoDB Table
@@ -36,9 +167,19 @@ Resources:
       ClientName: BranchBoxWebClient
       UserPoolId: !Ref UserPool
       GenerateSecret: false
+      CallbackURLs:
+        - !Sub "https://${FrontendDistribution.DomainName}"
+        - "http://localhost:5173"
+      LogoutURLs:
+        - !Sub "https://${FrontendDistribution.DomainName}"
+        - "http://localhost:5173"
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code, implicit]
+      AllowedOAuthScopes: [email, openid, profile]
       ExplicitAuthFlows:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
+      SupportedIdentityProviders: [COGNITO]
 
   # Function: Manager (API for UI)
   ManagerFunction:
@@ -60,9 +201,24 @@ Resources:
                 - ssm:GetParameter
                 - ssm:GetParameters
               Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/branchbox/*"
+            # Allow Lambda to trigger CloudFormation
+            - Effect: Allow
+              Action:
+                - cloudformation:CreateStack
+                - cloudformation:DeleteStack
+                - cloudformation:DescribeStacks
+                - cloudformation:UpdateStack
+              Resource: "*"
+            # Allow Lambda to Pass the Service Role to CloudFormation
+            - Effect: Allow
+              Action:
+                - iam:PassRole
+                - iam:GetRole
+              Resource: !GetAtt CFDeploymentRole.Arn
       Environment:
         Variables:
           TABLE_NAME: !Ref EnvironmentTable
+          CF_SERVICE_ROLE_ARN: !GetAtt CFDeploymentRole.Arn
       Events:
         GetRepos:
           Type: HttpApi
@@ -88,10 +244,36 @@ Resources:
             Path: /envs
             Method: delete
             ApiId: !Ref ApiGateway
+         # Manual Deploy Trigger
+        DeployEnv:
+          Type: HttpApi
+          Properties:
+             Path: /deploy
+             Method: post
+             ApiId: !Ref ApiGateway
+        GetConfig:
+           Type: HttpApi
+           Properties:
+              Path: /config
+              Method: get
+              ApiId: !Ref ApiGateway
+        SaveConfig:
+           Type: HttpApi
+           Properties:
+              Path: /config
+              Method: post
+              ApiId: !Ref ApiGateway
 
   ApiGateway:
     Type: AWS::Serverless::HttpApi
     Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - !Sub "https://${FrontendDistribution.DomainName}"
+          - "http://localhost:5173"
+        AllowMethods: [GET, POST, DELETE, OPTIONS]
+        AllowHeaders: [Authorization, Content-Type]
+        MaxAge: 300
       Auth:
         DefaultAuthorizer: CognitoAuth
         Authorizers:
@@ -196,3 +378,10 @@ Outputs:
   UserPoolClientId:
     Description: "Cognito User Pool Client ID"
     Value: !Ref UserPoolClient
+  FrontendUrl:
+    Description: "Frontend CloudFront URL"
+    Value: !Sub "https://${FrontendDistribution.DomainName}"
+  FrontendBucketName:
+    Description: "S3 Bucket for Frontend Assets (Upload here)"
+    Value: !Ref FrontendBucket
+
