@@ -130,60 +130,22 @@ Before deploying, you must configure your AWS credentials to allow the CLI tools
 
 ### Cloud Deployment (Production)
 
-This project uses **AWS SAM** for the backend and **S3 + CloudFront** for the frontend.
+We provide an automated script to handle backend deployment, configuration sync, and frontend deployment.
 
-#### 1. Deploy Backend & Infrastructure
-This step creates the API, Database, Auth, and the Frontend Hosting infrastructure (S3 Bucket & CloudFront).
-
-1.  Navigate to the backend directory:
+1.  **Run the Deployment Script**:
     ```bash
-    cd backend
+    ./deploy.sh
     ```
+    - It will run `sam deploy --guided` for the backend (only asks for input on the first run).
+    - It automatically sets up `frontend/.env.production` with the deployed API endpoints.
+    - It builds the frontend and syncs it to the S3 bucket.
+    - It invalidates the CloudFront cache.
 
-2.  Build and Deploy:
-    ```bash
-    sam build
-    sam deploy --guided
-    ```
-    - **Stack Name**: `branch-box`
-    - **Region**: `ap-northeast-2`
-    - **Confirm changes**: `y`
-    - **Allow IAM role creation**: `y`
-    - **Save arguments**: `y`
+2.  **Access the Application**:
+    - The script output (and `sam deploy` output) provides the **FrontendUrl**.
+    - Open it in your browser to access the live application.
 
-3.  **Note the Outputs**:
-    After a successful deploy, the terminal will show important outputs. Copy these values:
-    - `ApiEndpoint`
-    - `UserPoolId`
-    - `UserPoolClientId`
-    - `FrontendBucketName` (e.g., `branch-box-frontendbucket-xxxx`)
-    - `FrontendUrl` (e.g., `https://d1234.cloudfront.net`)
-
-#### 2. Build & Deploy Frontend
-Now, build the React application and upload it to the newly created S3 bucket.
-
-1.  Navigate to the frontend directory:
-    ```bash
-    cd ../frontend
-    ```
-
-2.  **Build**:
-    The build process will automatically use the environment variables from your setup if configured, or you can create a `.env.production` file.
-    ```bash
-    npm run build
-    ```
-
-3.  **Upload to S3**:
-    Replace `[FrontendBucketName]` with the actual bucket name from the backend outputs.
-    ```bash
-    aws s3 sync ./dist s3://[FrontendBucketName] --delete
-    ```
-
-4.  **Invalidate Cache (Optional)**:
-    If updating an existing deployment, invalidate the CloudFront cache to see changes immediately.
-    ```bash
-    aws cloudfront create-invalidation --distribution-id [DistributionID] --paths "/*"
-    ```
+> **Manual Deployment**: If you prefer manual steps, you can still run `sam deploy` in `backend/`, manually create `frontend/.env.production` using the outputs, run `npm run build`, and `aws s3 sync dist s3://...`.
 
 #### 3. Access the Application
 Open the **FrontendUrl** (e.g., `https://d1234.cloudfront.net`) in your browser. You should see the Branch-Box login page.
