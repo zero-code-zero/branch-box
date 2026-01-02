@@ -27,33 +27,11 @@
 -   **Auth**: Amazon Cognito
 -   **Scheduling**: Amazon EventBridge Scheduler
 
-### GitHub App Setup (Required)
+## Installation & Setup
 
-To allow Branch-Box to detect branches and download code, you must create a GitHub App.
+Follow these steps to deploy Branch-Box to your AWS account and configure the GitHub integration.
 
-1.  **Create GitHub App**:
-    - Go to **Settings > Developer settings > GitHub Apps > New GitHub App**.
-    - **Name**: `Branch-Box-YourName`
-    - **Homepage URL**: Your CloudFront URL (or `http://localhost:5173` for dev).
-    - **Webhook URL**: The **ApiEndpoint** + `/webhook` (e.g., `https://api.xyz.com/webhook`).
-    - **Permissions**:
-        - `Contents`: Read-only (to download code).
-        - `Metadata`: Read-only.
-    - **Events**: `Push`, `Pull Request`.
-
-2.  **Install App**:
-    - After creating, click **Install App** on the left menu and install it on your repository.
-
-3.  **Get Credentials**:
-    - Note the **App ID**.
-    - Generate and download a **Private Key** (`.pem` file).
-
-4.  **Configure Dashboard**:
-    - Open your deployed Branch-Box Dashboard.
-    - Click **Settings** in the top right.
-    - Enter your **App ID**, **Installation ID** (found in URL after install), and the content of your **Private Key**.
-
-## Installation
+### Step 1: Prerequisites & Installation
 
 1.  **Clone the repository**
     ```bash
@@ -61,101 +39,80 @@ To allow Branch-Box to detect branches and download code, you must create a GitH
     cd branch-box
     ```
 
-2.  **Install Root Dependencies** (for Husky & Lint-staged)
+2.  **Install Dependencies**
     ```bash
-    npm install
+    npm install          # Root (Husky/Lint)
+    cd backend/src && npm install && cd ../..
+    cd frontend && npm install && cd ..
     ```
 
-3.  **Install Backend Dependencies**
+3.  **Configure AWS Credentials**
+    Ensure you have an IAM User with `AdministratorAccess` keys.
     ```bash
-    cd backend/src
-    npm install
-    cd ../..
+    aws configure
+    # Enter Access Key, Secret Key, Region (e.g., ap-northeast-2), Output (json)
     ```
 
-4.  **Install Frontend Dependencies**
+### Step 2: Cloud Deployment
+
+We provide an automated script to handle backend deployment, configuration sync, and frontend deployment.
+
+1.  **Run the Deployment Script**
     ```bash
-    cd frontend
-    npm install
-    cd ..
+    ./deploy.sh
     ```
+    - This will deploy the backend (AWS SAM) and frontend (S3/CloudFront).
+    - **Note the Outputs**: The script will print the **ApiEndpoint** and **FrontendUrl** at the end. You will need these for the next step.
 
-## Usage
+### Step 3: GitHub App Setup
 
-Branch-Box can be run in two modes: **Dev Mode** (Local) and **Production Mode** (Cloud).
+Now that you have your deployment URLs, you must create a GitHub App to allow Branch-Box to detect and manage branches.
 
-### 1. Dev Mode (Local Development)
-Ideal for UI development without connecting to real AWS resources. It mocks API responses and bypasses authentication.
+1.  **Create GitHub App**
+    - Go to **Settings > Developer settings > GitHub Apps > New GitHub App**.
+    - **Name**: `Branch-Box-YourName`
+    - **Homepage URL**: Your **FrontendUrl** (output from Step 2).
+    - **Webhook URL**: Your **ApiEndpoint** + `/webhook` (e.g., `https://xxxx.execute-api.ap-northeast-2.amazonaws.com/webhook`).
+    - **Permissions**:
+        - `Contents`: Read-only
+        - `Metadata`: Read-only
+        - `Pull Requests`: Read-only
+    - **Events**: `Push`, `Pull Request`
 
-1.  **Create a `.env` file** in the `frontend` directory:
+2.  **Install App**
+    - Click **Install App** on the left menu and install it on your repository.
+
+3.  **Get Credentials**
+    - Note the **App ID**.
+    - Generate and download a **Private Key** (`.pem` file).
+
+4.  **Configure Dashboard**
+    - Open your **FrontendUrl** in the browser.
+    - Click **Settings** in the top right.
+    - Enter your **App ID**, **Installation ID**, and **Private Key**.
+
+## Development (Dev Mode)
+
+You can run the frontend locally with mock data, bypassing AWS login.
+
+1.  **Enable Dev Mode**
     ```bash
     echo "VITE_DEV_MODE=true" > frontend/.env
     ```
 
-2.  **Start the frontend**:
+2.  **Start Frontend**
     ```bash
     cd frontend
     npm run dev
     ```
-
-3.  Open `http://localhost:5173`. You will see a **(Dev Mode)** indicator and can use the dashboard with mock data.
-
-### 2. Production Mode (Cloud Connected)
-Connects to the real AWS backend (`api setup required`).
-
-1.  **Ensure `.env` does NOT have `VITE_DEV_MODE=true`** (or set it to `false`).
-2.  **Start the frontend**:
-    ```bash
-    npm run dev
-    ```
-3.  The app will redirect to the **Cognito Login Page**.
-4.  After login, it will make real API calls to your AWS API Gateway.
-
-
-### AWS Credentials Setup
-Before deploying, you must configure your AWS credentials to allow the CLI tools to create resources on your behalf.
-
-1.  **Create an IAM User**:
-    - Go to the AWS IAM Console.
-    - Create a user with `AdministratorAccess` (or sufficient permissions for CloudFormation, S3, IAM, etc.).
-    - Generate an **Access Key** and **Secret Access Key** for this user.
-
-2.  **Configure CLI**:
-    Run the following command and enter your keys when prompted:
-    ```bash
-    aws configure
-    ```
-    - **Region**: `ap-northeast-2` (or your preferred region)
-    - **Output format**: `json`
-
-### Cloud Deployment (Production)
-
-We provide an automated script to handle backend deployment, configuration sync, and frontend deployment.
-
-1.  **Run the Deployment Script**:
-    ```bash
-    ./deploy.sh
-    ```
-    - It will run `sam deploy --guided` for the backend (only asks for input on the first run).
-    - It automatically sets up `frontend/.env.production` with the deployed API endpoints.
-    - It builds the frontend and syncs it to the S3 bucket.
-    - It invalidates the CloudFront cache.
-
-2.  **Access the Application**:
-    - The script output (and `sam deploy` output) provides the **FrontendUrl**.
-    - Open it in your browser to access the live application.
-
-> **Manual Deployment**: If you prefer manual steps, you can still run `sam deploy` in `backend/`, manually create `frontend/.env.production` using the outputs, run `npm run build`, and `aws s3 sync dist s3://...`.
-
-#### 3. Access the Application
-Open the **FrontendUrl** (e.g., `https://d1234.cloudfront.net`) in your browser. You should see the Branch-Box login page.
+    - Open `http://localhost:5173`. You will see the **(Dev Mode)** indicator.
 
 ## Architecture Highlights
+-   **Webhook Handler**: Listens for GitHub events to trigger infrastructure changes.
+-   **Manager API**: Serves the Dashboard UI.
+-   **Scheduler**: Auto-stops environments (default 18:00 KST).
+-   **CloudFormation**: Each "Environment" is a separate Stack.
 
--   **Webhook Handler**: Listens for GitHub events (push, pull_request) to trigger infrastructure changes.
--   **Manager API**: Serves the Dashboard UI for listing and controlling environments.
--   **Scheduler**: Automatically stops environments at a configured time (e.g., 6 PM KST).
--   **CloudFormation**: Each "Environment" is a separate CloudFormation stack containing the EC2 instance and related resources.
 
 ## Contributing
 

@@ -62,15 +62,17 @@ console.log('VITE_DEV_MODE=false');
 # Also print the bucket name for the script to pick up
 console.log('#BUCKET=' + find('FrontendBucketName'));
 console.log('#DIST=' + find('FrontendDistributionId'));
+console.log('#FRONTEND_URL=' + find('FrontendUrl'));
 "
 
 # Generate the .env content and extract bucket name
 ENV_CONTENT=$(node -e "$NODE_SCRIPT" "$OUTPUTS")
 BUCKET_NAME=$(echo "$ENV_CONTENT" | grep "#BUCKET=" | cut -d'=' -f2)
 DIST_ID=$(echo "$ENV_CONTENT" | grep "#DIST=" | cut -d'=' -f2)
+FRONTEND_URL=$(echo "$ENV_CONTENT" | grep "#FRONTEND_URL=" | cut -d'=' -f2)
 
 # Remove the internal markers from the file content
-FINAL_ENV_CONTENT=$(echo "$ENV_CONTENT" | grep -v "#BUCKET=" | grep -v "#DIST=")
+FINAL_ENV_CONTENT=$(echo "$ENV_CONTENT" | grep -v "#BUCKET=" | grep -v "#DIST=" | grep -v "#FRONTEND_URL=")
 
 echo "generated frontend/.env.production:"
 echo "$FINAL_ENV_CONTENT"
@@ -109,3 +111,11 @@ echo ""
 echo "=========================================="
 echo "✅ Deployment Complete!"
 echo "=========================================="
+echo ""
+echo "👇 NEXT STEPS:"
+echo "1. Go to GitHub > Settings > Developer settings > GitHub Apps > New GitHub App"
+echo "2. Set Webhook URL to: $(echo "$FINAL_ENV_CONTENT" | grep "VITE_API_ENDPOINT" | cut -d'=' -f2)/webhook"
+echo "3. Copy App ID and generate Private Key"
+echo "4. Open Dashboard at: $FRONTEND_URL"
+echo "   (Click 'Settings' to configure your App ID and Private Key)"
+
