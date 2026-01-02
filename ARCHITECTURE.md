@@ -40,7 +40,7 @@ graph TD
         EC2[EC2 Instance]
     end
 
-    User -->|Login (ID/PW)| Cognito
+    User -->|"Login (ID/PW)"| Cognito
     User -->|Access UI| UI
     UI -->|Auth Token + API| APIGW
     APIGW -->|Validate Token| Cognito
@@ -51,7 +51,7 @@ graph TD
     L_Main -->|Create Stack| CF
     
     GitHub((GitHub)) -->|Download Source using App Token| L_Main
-    GitHub -->|Webhook (Push)| APIGW
+    GitHub -->|"Webhook (Push)"| APIGW
     
     APIGW --> L_Hook
     L_Hook -->|Trigger Deploy| L_Main
