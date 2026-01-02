@@ -91,6 +91,16 @@ Now that you have your deployment URLs, you must create a GitHub App to allow Br
     - Click **Settings** in the top right.
     - Enter your **App ID**, **Installation ID**, and **Private Key**.
 
+## Connect to Environments
+
+## Connect to Environments
+
+Once an environment is `RUNNING`, you can securely connect to the EC2 instance using the **SSM Copy Icon** (`📋`) located next to the environment status on the dashboard.
+
+-   **Action**: Clicking the icon copies the `aws ssm start-session` command to your clipboard.
+-   **Usage**: Paste and run the command in your terminal (requires AWS CLI + Session Manager Plugin).
+-   **Note**: SSH and Public DNS access are not directly exposed to encourage secure access via SSM.
+
 ## Development (Dev Mode)
 
 You can run the frontend locally with mock data, bypassing AWS login.

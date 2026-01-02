@@ -435,6 +435,8 @@ button:disabled {
   /* Explicitly dark text */
 }
 
+/* Tabs & Code Block Styles - REMOVED (Modal no longer used) */
+
 .form-group input:focus,
 .form-group textarea:focus {
   border-color: var(--primary);

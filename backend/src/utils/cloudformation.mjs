@@ -215,6 +215,7 @@ dnf install -y docker-compose-plugin
         },
         Outputs: {
             PublicIP: { Value: { 'Fn::GetAtt': ['DevInstance', 'PublicIp'] } },
+            PublicDNS: { Value: { 'Fn::GetAtt': ['DevInstance', 'PublicDnsName'] } },
             InstanceId: { Value: { Ref: 'DevInstance' } },
             ArtifactBucketName: { Value: { Ref: 'ArtifactBucket' } },
         },
@@ -256,33 +257,11 @@ phases:
       - echo "Handling custom specs..."
       - if [ "$BUILDSPEC_PATH" != "buildspec.yml" ] && [ -f "$BUILDSPEC_PATH" ]; then cp "$BUILDSPEC_PATH" buildspec.yml; fi
       - if [ "$APPSPEC_PATH" != "appspec.yml" ] && [ -f "$APPSPEC_PATH" ]; then cp "$APPSPEC_PATH" appspec.yml; fi
-      # If actual build command is needed, it should be in the user's buildspec provided via BUILDSPEC_PATH
-      # BUT, we are overriding BuildSpec here.
-      # Ideally, we should use the Source's buildspec. 
-      # Solution: We define a very simple Shell script here that prepares artifacts?
-      # No, CodeBuild uses ONE buildspec. If we define 'BuildSpec' property, it overrides repo's.
-      # We want to use the REPO's buildspec. 
-      # So we should NOT set 'BuildSpec' inline property if we want to use repo's.
-      # BUT, we need to handle the 'appspec.yml' location issue for CodeDeploy.
-      # CodeDeploy expects appspec.yml at root.
-      # Strategy: We MUST use an inline buildspec that wraps the user's build/appspec logic or moves files.
-      # Let's generate a simple inline buildspec that copies custom appspec to root, then includes the user's build files.
-      # Complex...
-      # Simplification: Assume user puts appspec.yml at root or we fail. 
-      # OR: We copy everything to artifact.
 artifacts:
   files:
     - '**/*'
 `,
                 },
-                // Note: If we use inline BuildSpec, we can't easily run the user's buildspec commands unless we `eval`.
-                // Better approach for MVP: Trust the repo has buildspec.yml and appspec.yml at root OR user configured paths correctly.
-                // If user customized paths, we DO need to move them.
-                // Let's stick to inline buildspec that just prepares artifacts for Deployment.
-                // Building (compile) might be skipped for simple apps, or we assume they commit built assets?
-                // Real usage: They need to build (npm install).
-                // Let's use the INLINE buildspec to run the user's buildspec commands? Too hard.
-                // Start with: "Copy files" mode.
             },
         };
 
@@ -395,10 +374,6 @@ export const createEnvironmentStack = async (services, roleArn) => {
 };
 
 export const deleteEnvironmentStack = async (stackNameOrId) => {
-    // Note: S3 Bucket must be empty to delete stack. We need to empty it first?
-    // CloudFormation will fail to delete non-empty bucket.
-    // For MVP, we ignore this risk or handle in 'deleteEnv' in app.mjs?
-    // ideally we should empty bucket in deleteEnv logic before calling this.
     const command = new DeleteStackCommand({ StackName: stackNameOrId });
     try {
         await cfClient.send(command);
@@ -406,5 +381,28 @@ export const deleteEnvironmentStack = async (stackNameOrId) => {
     } catch (error) {
         console.error('Error deleting stack:', error);
         throw error;
+    }
+};
+
+export const getStackOutputs = async (stackName) => {
+    try {
+        const command = new DescribeStacksCommand({ StackName: stackName });
+        const { Stacks } = await cfClient.send(command);
+        if (!Stacks || Stacks.length === 0) return null;
+
+        const stack = Stacks[0];
+        // Only return outputs if stack is CREATE_COMPLETE or UPDATE_COMPLETE
+        if (stack.StackStatus !== 'CREATE_COMPLETE' && stack.StackStatus !== 'UPDATE_COMPLETE') {
+            return null;
+        }
+
+        const outputs = {};
+        stack.Outputs?.forEach((o) => {
+            outputs[o.OutputKey] = o.OutputValue;
+        });
+        return outputs;
+    } catch (error) {
+        console.error('Error getting stack outputs:', error);
+        return null;
     }
 };

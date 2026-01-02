@@ -103,6 +103,7 @@ function Dashboard({ signOut, user }) {
   const [refreshing, setRefreshing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
 
   const fetchData = async () => {
     setRefreshing(true);
@@ -128,6 +129,8 @@ function Dashboard({ signOut, user }) {
               StackName: 'dev-stack-active',
               Status: 'RUNNING',
               PublicIP: '1.2.3.4',
+              PublicDNS: 'ec2-1-2-3-4.ap-northeast-2.compute.amazonaws.com',
+              InstanceId: 'i-0123456789abcdef0',
               CreatedAt: new Date().toISOString(),
               Services: [{ Repo: 'user/repo-a', Branch: 'feature/login' }],
             },
@@ -183,6 +186,15 @@ function Dashboard({ signOut, user }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCopySSM = (env) => {
+    if (!env.InstanceId) return;
+    const region = import.meta.env.VITE_AWS_REGION || 'ap-northeast-2';
+    const cmd = `aws ssm start-session --target ${env.InstanceId} --region ${region}`;
+    navigator.clipboard.writeText(cmd);
+    setCopiedId(env.StackId);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleAddService = () => {
@@ -511,9 +523,22 @@ function Dashboard({ signOut, user }) {
                 <div key={env.StackId} className={`env-card status-${env.Status?.toLowerCase()}`}>
                   <div className="env-header">
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span className="env-id" style={{ fontSize: '1.1em', fontWeight: 'bold' }}>
-                        {env.Alias || env.StackName || env.StackId?.substring(0, 8)}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className="env-id" style={{ fontSize: '1.1em', fontWeight: 'bold' }}>
+                          {env.Alias || env.StackName || env.StackId?.substring(0, 8)}
+                        </span>
+                        {/* Copy SSM Command Icon */}
+                        {env.Status === 'RUNNING' && env.InstanceId && (
+                          <button
+                            className="icon-btn"
+                            title="Copy SSM Connect Command"
+                            onClick={() => handleCopySSM(env)}
+                            style={{ color: copiedId === env.StackId ? '#10b981' : '#64748b' }}
+                          >
+                            {copiedId === env.StackId ? '✅' : '📋'}
+                          </button>
+                        )}
+                      </div>
                       <span style={{ fontSize: '0.8em', color: '#666' }}>
                         Stack: {env.StackName || env.StackId?.substring(0, 8)}
                       </span>

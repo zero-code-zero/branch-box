@@ -108,7 +108,48 @@ export const managerHandler = async (event) => {
         if (event.routeKey === 'GET /envs') {
             const command = new ScanCommand({ TableName: TABLE_NAME });
             const result = await docClient.send(command);
-            return response(200, result.Items);
+            const items = result.Items || [];
+
+            // Sync Logic: Check if any "CREATING" or "RUNNING" env is missing InstanceId/PublicIP/PublicDNS
+            const updates = items.map(async (item) => {
+                const isStackActive = item.Status === 'CREATING' || item.Status === 'RUNNING';
+                const missingInfo = !item.InstanceId || !item.PublicIP || !item.PublicDNS;
+
+                if (isStackActive && missingInfo && item.StackName) {
+                    const outputs = await getStackOutputs(item.StackName);
+                    if (outputs && outputs.InstanceId) {
+                        console.log(`Syncing outputs for ${item.StackName}`, outputs);
+                        // Update DB
+                        await docClient.send(
+                            new UpdateCommand({
+                                TableName: TABLE_NAME,
+                                Key: { StackId: item.StackId },
+                                UpdateExpression:
+                                    'set InstanceId = :id, PublicIP = :ip, PublicDNS = :dns, #s = :status',
+                                ExpressionAttributeNames: { '#s': 'Status' },
+                                ExpressionAttributeValues: {
+                                    ':id': outputs.InstanceId,
+                                    ':ip': outputs.PublicIP || null,
+                                    ':dns': outputs.PublicDNS || null,
+                                    ':status': 'RUNNING',
+                                },
+                            }),
+                        );
+                        // Update local item for return
+                        item.InstanceId = outputs.InstanceId;
+                        item.PublicIP = outputs.PublicIP;
+                        item.PublicDNS = outputs.PublicDNS;
+                        item.Status = 'RUNNING';
+                    }
+                }
+                return item;
+            });
+
+            await Promise.all(updates);
+
+            // Sort by CreatedAt desc
+            items.sort((a, b) => new Date(b.CreatedAt) - new Date(a.CreatedAt));
+            return response(200, items);
         }
 
         // POST /envs (Create Stack)
